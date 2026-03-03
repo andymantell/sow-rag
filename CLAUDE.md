@@ -52,9 +52,13 @@ Foundry Local CLI.
 }
 ```
 
-When UseLocal is true, use FoundryLocalManager to resolve the endpoint.
-When false, use CloudEndpoint + CloudApiKey directly with the OpenAI
-SDK — no other code changes required.
+FoundryClientFactory always returns `OpenAI.Chat.ChatClient`. For local,
+it calls `FoundryLocalManager` to get the endpoint, constructs an
+`OpenAIClient` with that base URI, then calls `.GetChatClient(modelName)`.
+For cloud, it constructs an `AzureOpenAIClient` with the cloud endpoint
+and API key, then calls `.GetChatClient(modelName)`. All consumers
+(DefinitionBuilder, SoWImprover) depend only on `ChatClient` — they are
+unaware of whether they're talking to local or cloud.
 
 If UseLocal is true and Foundry Local is not running at startup, throw
 an exception and let the process crash. In a container deployment this
@@ -64,6 +68,10 @@ will not become healthy until Foundry is available.
 If the KnownGoodFolder contains no PDF files at startup, throw an
 exception with a clear message ("No PDFs found in KnownGoodFolder —
 populate the folder before starting"). Same crash behaviour.
+
+If any per-document LLM call fails during definition generation at
+startup, throw an exception and crash. All documents must be processed
+successfully for the definition to be considered valid.
 
 If an uploaded PDF yields no extractable text (scanned/image-based),
 return HTTP 400: "No text could be extracted — PDF may be scanned or
@@ -82,7 +90,7 @@ SoWImprover/
 │   ├── DefinitionBuilder.cs    # Generates "definition of good" from corpus
 │   ├── SoWImprover.cs          # Generates improved SoW using RAG
 │   ├── FoundryClientFactory.cs # Resolves local vs cloud endpoint,
-│   │                           # returns configured OpenAI client
+│   │                           # returns ChatClient (OpenAI.Chat.ChatClient)
 │   └── DiffService.cs          # Normalises/prepares original + improved text
 │                               # for the API response (diff computed client-side)
 ├── Models/
@@ -231,8 +239,10 @@ Must include:
 - **Diff rendering** — no diff2html; both sides rendered with marked.js; word-level
   diffs via jsdiff CDN, annotated with `<ins>`/`<del>` spans before rendering
 - **LLM improvement strategy** — one call per section, sequential, no section cap
-- **Azure cloud client** — use `AzureOpenAIClient` from `Azure.AI.OpenAI` NuGet
-  (separate code path in factory); local uses `OpenAIClient` from `OpenAI` NuGet
+- **Factory return type** — `ChatClient` (OpenAI.Chat); both local and cloud paths
+  call `.GetChatClient(modelName)` on their respective underlying client
+- **Azure cloud client** — use `AzureOpenAIClient` from `Azure.AI.OpenAI` NuGet;
+  local uses `OpenAIClient` from `OpenAI` NuGet; consumers see only `ChatClient`
 - **ChunkSize units** — words (not characters); ChunkOverlap likewise in words
 - **Empty corpus** — crash at startup with clear error if no PDFs found
 - **Scanned PDFs** — return HTTP 400 if no text extracted from upload
@@ -243,6 +253,10 @@ Must include:
   IP ownership, scope boundaries, risk/change control
 - **chunksUsed deduplication** — deduplicated; each chunk appears once in the list
 - **Snippet length** in chunksUsed — truncate to 200 characters
+- **Startup LLM failure** — any per-doc call failure during definition generation crashes the app
+- **Factory return type** is `ChatClient`; per-section `improved` field includes the
+  section heading as a markdown `##` heading followed by improved body, enabling
+  reassembly by simple concatenation
 - **`/api/definition` when not ready** — also returns 503 (same as `/api/improve`)
 - **Frontend status polling** — poll `/api/status` every 2 seconds until ready
 
