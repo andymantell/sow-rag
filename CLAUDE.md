@@ -19,12 +19,12 @@ with no code changes — only config changes.
 - **PDF extraction:** PdfPig
 - **Foundry Local:** Microsoft.AI.Foundry.Local NuGet package —
   use FoundryLocalManager to discover dynamic local endpoint at runtime
-- **Model client:** OpenAI .NET SDK (v2.x) — Foundry Local exposes an
-  OpenAI-compatible API. The same client must work against Azure AI 
-  Foundry cloud by swapping endpoint/key in config
+- **Model client:** `OpenAI` NuGet (v2.x) for local (OpenAI-compatible API);
+  `Azure.AI.OpenAI` NuGet for cloud (`AzureOpenAIClient`). Factory has
+  separate code paths for local vs cloud.
 - **Markdown rendering:** marked.js (CDN, client-side)
-- **Diff rendering:** diff2html.js (CDN, client-side) for the side-by-side
-  HTML diff view
+- **Diff rendering:** jsdiff (CDN, client-side) for word-level diffing;
+  both sides rendered as markdown via marked.js — no diff2html
 - **No database, no vector store, no cloud dependencies by default**
 
 ## Model Configuration
@@ -61,6 +61,16 @@ an exception and let the process crash. In a container deployment this
 triggers a restart loop, which is the desired behaviour — the container
 will not become healthy until Foundry is available.
 
+If the KnownGoodFolder contains no PDF files at startup, throw an
+exception with a clear message ("No PDFs found in KnownGoodFolder —
+populate the folder before starting"). Same crash behaviour.
+
+If an uploaded PDF yields no extractable text (scanned/image-based),
+return HTTP 400: "No text could be extracted — PDF may be scanned or
+image-based."
+
+Upload size limit: 28 MB (ASP.NET Core default — no extra config needed).
+
 ## Project Structure
 ```
 SoWImprover/
@@ -73,7 +83,8 @@ SoWImprover/
 │   ├── SoWImprover.cs          # Generates improved SoW using RAG
 │   ├── FoundryClientFactory.cs # Resolves local vs cloud endpoint,
 │   │                           # returns configured OpenAI client
-│   └── DiffService.cs          # Prepares before/after content for diff
+│   └── DiffService.cs          # Normalises/prepares original + improved text
+│                               # for the API response (diff computed client-side)
 ├── Models/
 │   ├── DocumentChunk.cs
 │   ├── GoodDefinition.cs       # Cached definition of good
@@ -147,11 +158,13 @@ Single page with three panels:
 - Shows flagged sections as yellow warning badges once complete
 
 **3. Diff Panel (main area)**
-- Side-by-side view using diff2html.js
-- Left: original document text
-- Right: improved markdown (rendered)
-- Word-level diffs highlighted (green additions, red removals)
-- Flagged sections additionally highlighted with a yellow border/badge
+- Side-by-side view: left = original rendered as markdown, right = improved
+  rendered as markdown (both via marked.js)
+- Word-level diffs highlighted using jsdiff (CDN): green for additions,
+  red/strikethrough for removals — achieved by annotating the markdown
+  strings with `<ins>`/`<del>` spans before rendering
+- Flagged sections shown as yellow warning badges above the diff panel
+  (not overlaid on the diff itself)
 - Chunks used shown as a collapsible "Sources" section below the diff
 
 ## Multi-User Considerations
@@ -165,6 +178,11 @@ Use TF-IDF in-memory similarity search (no vector DB). SimpleRetriever
 returns top-k chunks from the known-good corpus most relevant to each
 section of the uploaded document. Retrieval is per-section, not
 per-document, so each section gets its own grounded context.
+
+The improvement LLM call is also per-section: each section is improved
+independently with its own retrieved chunks, then sections are reassembled
+into the final document. Calls are made sequentially (no parallelism),
+with no cap on section count.
 
 Sections in the uploaded document are identified by heading detection:
 lines that are Markdown headings (starting with `#`) or all-caps lines
@@ -200,6 +218,15 @@ Must include:
 - **No chat UI** — three panels only: definition sidebar, upload panel, diff panel
 - **Sample SoWs** — user supplies real PDFs; `sample-sows/` ships with `.gitkeep` only
 - **Project root** — `C:\goaco\AI\SOW-RAG\SoWImprover\` (subfolder of the repo)
+- **Diff rendering** — no diff2html; both sides rendered with marked.js; word-level
+  diffs via jsdiff CDN, annotated with `<ins>`/`<del>` spans before rendering
+- **LLM improvement strategy** — one call per section, sequential, no section cap
+- **Azure cloud client** — use `AzureOpenAIClient` from `Azure.AI.OpenAI` NuGet
+  (separate code path in factory); local uses `OpenAIClient` from `OpenAI` NuGet
+- **ChunkSize units** — words (not characters)
+- **Empty corpus** — crash at startup with clear error if no PDFs found
+- **Scanned PDFs** — return HTTP 400 if no text extracted from upload
+- **Upload size limit** — 28 MB (ASP.NET Core default, no extra config)
 
 ## Current Task
 _Update this section each session to describe what to work on next._
