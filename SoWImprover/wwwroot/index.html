@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoW Improver</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      background: #f5f5f5;
+      color: #222;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    #status-badge {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      background: #444;
+      color: #ccc;
+    }
+    #status-badge.ready { background: #166534; color: #bbf7d0; }
+    #status-badge.loading { background: #7c3aed; color: #ede9fe; }
+    #status-badge.error { background: #7f1d1d; color: #fecaca; }
+
+    /* ── Main layout ── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 280px;
+      min-width: 200px;
+      max-width: 380px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    aside h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #555;
+      padding: 12px 14px 8px;
+      border-bottom: 1px solid #eee;
+      flex-shrink: 0;
+    }
+    #definition-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      line-height: 1.6;
+    }
+    #definition-content h1, #definition-content h2 { font-size: 13px; margin: 12px 0 4px; color: #333; }
+    #definition-content h3 { font-size: 12px; margin: 8px 0 2px; color: #555; }
+    #definition-content p { margin: 0 0 8px; color: #444; font-size: 13px; }
+    #definition-content ul, #definition-content ol { margin: 0 0 8px 18px; color: #444; font-size: 13px; }
+    #definition-content li { margin-bottom: 3px; }
+    #definition-content strong { color: #222; }
+
+    /* ── Main panel ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Upload bar ── */
+    #upload-bar {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #upload-bar label { font-size: 13px; font-weight: 500; color: #444; }
+    #file-input { font-size: 13px; }
+    #improve-btn {
+      padding: 6px 18px;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background .15s;
+    }
+    #improve-btn:hover:not(:disabled) { background: #2d2d5e; }
+    #improve-btn:disabled { background: #999; cursor: not-allowed; }
+    #spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid #ccc;
+      border-top-color: #1a1a2e;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #upload-error { color: #b91c1c; font-size: 13px; }
+
+    /* ── Flagged section badges ── */
+    #flags-bar {
+      display: none;
+      padding: 8px 16px;
+      background: #fffbeb;
+      border-bottom: 1px solid #fcd34d;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    #flags-bar.visible { display: flex; align-items: center; }
+    #flags-bar span.flag-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      margin-right: 4px;
+    }
+    .flag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      color: #78350f;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: help;
+    }
+    .flag-badge::before { content: "⚠"; }
+
+    /* ── Diff area ── */
+    #diff-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #diff-placeholder {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 14px;
+    }
+
+    #diff-panels {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+      flex-direction: column;
+    }
+    #diff-panels.visible { display: flex; }
+
+    .diff-header-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: #e0e0e0;
+      flex-shrink: 0;
+    }
+    .diff-col-header {
+      background: #f0f0f0;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #555;
+    }
+
+    .diff-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: #e0e0e0;
+      flex: 1;
+      overflow: hidden;
+    }
+    .diff-col {
+      background: #fff;
+      overflow-y: auto;
+      padding: 16px;
+      line-height: 1.65;
+    }
+    .diff-col h1 { font-size: 18px; margin: 0 0 10px; }
+    .diff-col h2 { font-size: 15px; margin: 14px 0 6px; }
+    .diff-col h3 { font-size: 13px; margin: 10px 0 4px; }
+    .diff-col p { margin: 0 0 10px; }
+    .diff-col ul, .diff-col ol { margin: 0 0 10px 20px; }
+    .diff-col li { margin-bottom: 3px; }
+
+    ins { background: #d1fae5; text-decoration: none; border-radius: 2px; padding: 0 1px; }
+    del { background: #fee2e2; text-decoration: line-through; border-radius: 2px; padding: 0 1px; color: #991b1b; }
+
+    /* ── Sources ── */
+    #sources-section {
+      display: none;
+      border-top: 1px solid #e0e0e0;
+      background: #fafafa;
+      flex-shrink: 0;
+    }
+    #sources-section.visible { display: block; }
+    #sources-toggle {
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 8px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #555;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #sources-toggle:hover { background: #f0f0f0; }
+    #sources-toggle .arrow { transition: transform .2s; }
+    #sources-toggle.open .arrow { transform: rotate(90deg); }
+    #sources-list {
+      display: none;
+      padding: 0 16px 12px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    #sources-list.open { display: block; }
+    .source-item {
+      font-size: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid #e8e8e8;
+      color: #555;
+    }
+    .source-item strong { color: #333; }
+
+    /* ── Spinner overlay (definition loading) ── */
+    .loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 30px;
+      color: #888;
+      font-size: 13px;
+    }
+    .loading-spinner .ring {
+      width: 32px; height: 32px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>SoW Improver</h1>
+  <span id="status-badge" class="loading">Loading…</span>
+  <span id="model-name" style="font-size:12px;color:#aaa;margin-left:auto;"></span>
+</header>
+
+<div class="layout">
+
+  <!-- ── Definition sidebar ── -->
+  <aside>
+    <h2>Definition of Good</h2>
+    <div id="definition-content">
+      <div class="loading-spinner">
+        <div class="ring"></div>
+        <span>Generating definition…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main>
+    <!-- Upload bar -->
+    <div id="upload-bar">
+      <label for="file-input">SoW PDF:</label>
+      <input type="file" id="file-input" accept="application/pdf" />
+      <button id="improve-btn" disabled>Improve</button>
+      <div id="spinner"></div>
+      <span id="upload-error"></span>
+    </div>
+
+    <!-- Flagged sections -->
+    <div id="flags-bar">
+      <span class="flag-label">Structural warnings:</span>
+    </div>
+
+    <!-- Diff area -->
+    <div id="diff-area">
+      <div id="diff-placeholder">Upload a SoW PDF and click Improve to see results.</div>
+
+      <div id="diff-panels">
+        <div class="diff-header-row">
+          <div class="diff-col-header">Original</div>
+          <div class="diff-col-header">Improved</div>
+        </div>
+        <div class="diff-cols">
+          <div class="diff-col" id="col-original"></div>
+          <div class="diff-col" id="col-improved"></div>
+        </div>
+      </div>
+
+      <!-- Sources -->
+      <div id="sources-section">
+        <button id="sources-toggle" type="button">
+          <span class="arrow">▶</span> Sources used
+        </button>
+        <div id="sources-list"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── Marked configuration ──────────────────────────────────────────────────
+  marked.setOptions({ breaks: true, gfm: true });
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let definitionReady = false;
+
+  // ── Status polling ────────────────────────────────────────────────────────
+  async function pollStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) throw new Error('status ' + res.status);
+      const data = await res.json();
+
+      const badge = document.getElementById('status-badge');
+      document.getElementById('model-name').textContent =
+        (data.isLocal ? 'Local' : 'Cloud') + ' · ' + (data.modelName || '');
+
+      if (data.isReady) {
+        badge.textContent = `Ready · ${data.documentCount} doc(s) · ${data.chunkCount} chunks`;
+        badge.className = 'ready';
+        definitionReady = true;
+        document.getElementById('improve-btn').disabled = false;
+        loadDefinition();
+      } else {
+        badge.textContent = 'Generating definition…';
+        badge.className = 'loading';
+        setTimeout(pollStatus, 2000);
+      }
+    } catch (e) {
+      const badge = document.getElementById('status-badge');
+      badge.textContent = 'Error: ' + e.message;
+      badge.className = 'error';
+      setTimeout(pollStatus, 5000);
+    }
+  }
+
+  // ── Load definition ───────────────────────────────────────────────────────
+  async function loadDefinition() {
+    try {
+      const res = await fetch('/api/definition');
+      if (!res.ok) throw new Error('status ' + res.status);
+      const md = await res.text();
+      document.getElementById('definition-content').innerHTML = marked.parse(md);
+    } catch (e) {
+      document.getElementById('definition-content').textContent = 'Failed to load definition: ' + e.message;
+    }
+  }
+
+  // ── Improve button ────────────────────────────────────────────────────────
+  document.getElementById('improve-btn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('file-input');
+    const errEl = document.getElementById('upload-error');
+    errEl.textContent = '';
+
+    if (!fileInput.files.length) {
+      errEl.textContent = 'Please select a PDF file.';
+      return;
+    }
+
+    const btn = document.getElementById('improve-btn');
+    const spinner = document.getElementById('spinner');
+    btn.disabled = true;
+    spinner.style.display = 'block';
+
+    const form = new FormData();
+    form.append('file', fileInput.files[0]);
+
+    try {
+      const res = await fetch('/api/improve', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        errEl.textContent = data.detail || data.title || 'Improvement failed.';
+        return;
+      }
+
+      renderResult(data);
+    } catch (e) {
+      errEl.textContent = 'Error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+    }
+  });
+
+  // ── Render result ─────────────────────────────────────────────────────────
+  function renderResult(data) {
+    // Flagged sections
+    const flagsBar = document.getElementById('flags-bar');
+    // Remove old badges (keep the label span)
+    [...flagsBar.querySelectorAll('.flag-badge')].forEach(el => el.remove());
+
+    if (data.flaggedSections && data.flaggedSections.length > 0) {
+      data.flaggedSections.forEach(f => {
+        const badge = document.createElement('span');
+        badge.className = 'flag-badge';
+        badge.textContent = f.sectionTitle;
+        badge.title = f.reason;
+        flagsBar.appendChild(badge);
+      });
+      flagsBar.classList.add('visible');
+    } else {
+      flagsBar.classList.remove('visible');
+    }
+
+    // Compute word-level diff and render both panels
+    const original = data.original || '';
+    const improved = data.improved || '';
+
+    const { originalHtml, improvedHtml } = buildDiffHtml(original, improved);
+
+    document.getElementById('col-original').innerHTML = marked.parse(originalHtml);
+    document.getElementById('col-improved').innerHTML = marked.parse(improvedHtml);
+
+    document.getElementById('diff-placeholder').style.display = 'none';
+    document.getElementById('diff-panels').classList.add('visible');
+
+    // Sources
+    renderSources(data.chunksUsed || []);
+  }
+
+  // ── Word-level diff ───────────────────────────────────────────────────────
+  // Uses jsdiff to compute word differences, then annotates both sides with
+  // <ins> / <del> tags so marked.js renders them correctly.
+  function buildDiffHtml(original, improved) {
+    const parts = Diff.diffWords(original, improved);
+
+    let origHtml = '';
+    let imprHtml = '';
+
+    parts.forEach(part => {
+      const text = escapeHtml(part.value);
+      if (part.added) {
+        imprHtml += `<ins>${text}</ins>`;
+      } else if (part.removed) {
+        origHtml += `<del>${text}</del>`;
+      } else {
+        origHtml += text;
+        imprHtml += text;
+      }
+    });
+
+    return { originalHtml: origHtml, improvedHtml: imprHtml };
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // ── Sources ───────────────────────────────────────────────────────────────
+  function renderSources(chunks) {
+    const section = document.getElementById('sources-section');
+    const list = document.getElementById('sources-list');
+    const toggle = document.getElementById('sources-toggle');
+
+    if (!chunks.length) {
+      section.classList.remove('visible');
+      return;
+    }
+
+    list.innerHTML = chunks.map(c => `
+      <div class="source-item">
+        <strong>${escapeHtml(c.sourceFile)}</strong><br>
+        ${escapeHtml(c.snippet)}
+      </div>`).join('');
+
+    section.classList.add('visible');
+
+    toggle.onclick = () => {
+      toggle.classList.toggle('open');
+      list.classList.toggle('open');
+    };
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  pollStatus();
+</script>
+
+</body>
+</html>

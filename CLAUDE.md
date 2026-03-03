@@ -17,8 +17,16 @@ with no code changes — only config changes.
 - **Frontend:** Vanilla JS + HTML/CSS, single index.html, no build step,
   no frameworks
 - **PDF extraction:** PdfPig
-- **Foundry Local:** Microsoft.AI.Foundry.Local NuGet package —
-  use FoundryLocalManager to discover dynamic local endpoint at runtime
+- **Foundry Local:** The Foundry Local CLI service runs automatically in
+  the background once installed. At startup, `FoundryClientFactory` runs
+  `foundry service status`, parses the service URL from the output
+  (`http://host:PORT`), queries `/v1/models` to resolve the config alias
+  (e.g. `phi-4`) to the actual loaded model ID (e.g. `Phi-4-trtrtx-gpu:1`),
+  then constructs an `OpenAIClient` pointed at `http://host:PORT/v1`.
+  The `Microsoft.AI.Foundry.Local` NuGet is still referenced in the csproj
+  but is **not used at runtime** — do not use `FoundryLocalManager` for
+  local inference; it starts an in-process service that cannot find models
+  downloaded by the CLI.
 - **Model client:** `OpenAI` NuGet (v2.x) for local (OpenAI-compatible API);
   `Azure.AI.OpenAI` NuGet for cloud (`AzureOpenAIClient`). Factory has
   separate code paths for local vs cloud.
@@ -52,13 +60,17 @@ Foundry Local CLI.
 }
 ```
 
-FoundryClientFactory always returns `OpenAI.Chat.ChatClient`. For local,
-it calls `FoundryLocalManager` to get the endpoint, constructs an
-`OpenAIClient` with that base URI, then calls `.GetChatClient(modelName)`.
-For cloud, it constructs an `AzureOpenAIClient` with the cloud endpoint
-and API key, then calls `.GetChatClient(modelName)`. All consumers
-(DefinitionBuilder, SoWImprover) depend only on `ChatClient` — they are
-unaware of whether they're talking to local or cloud.
+FoundryClientFactory always returns `OpenAI.Chat.ChatClient`. For local:
+1. Runs `foundry service status` (subprocess) to get `http://host:PORT`
+2. Appends `/v1` → this is the `Endpoint` URI for the OpenAI SDK (the SDK
+   appends `chat/completions`, giving the correct `/v1/chat/completions`)
+3. Queries `http://host:PORT/v1/models` to resolve the config alias to the
+   actual model ID (e.g. `phi-4` → `Phi-4-trtrtx-gpu:1`), preferring GPU
+   over CPU variants
+4. Returns `new OpenAIClient(key, opts).GetChatClient(modelId)`
+For cloud, constructs `AzureOpenAIClient` with the cloud endpoint and API
+key, then `.GetChatClient(modelName)`. All consumers (DefinitionBuilder,
+SoWImproverService) depend only on `ChatClient`.
 
 If UseLocal is true and Foundry Local is not running at startup, throw
 an exception and let the process crash. In a container deployment this
@@ -240,9 +252,18 @@ Must include:
   diffs via jsdiff CDN, annotated with `<ins>`/`<del>` spans before rendering
 - **LLM improvement strategy** — one call per section, sequential, no section cap
 - **Factory return type** — `ChatClient` (OpenAI.Chat); both local and cloud paths
-  call `.GetChatClient(modelName)` on their respective underlying client
+  call `.GetChatClient(modelId)` on their respective underlying client
 - **Azure cloud client** — use `AzureOpenAIClient` from `Azure.AI.OpenAI` NuGet;
   local uses `OpenAIClient` from `OpenAI` NuGet; consumers see only `ChatClient`
+- **FoundryLocalManager is not used at runtime** — connecting via it starts an
+  in-process service that cannot find CLI-downloaded models. Connect to the
+  running CLI service via `foundry service status` subprocess instead.
+- **OpenAI SDK endpoint quirk** — `OpenAIClientOptions.Endpoint` must include `/v1`
+  (e.g. `http://127.0.0.1:PORT/v1`) because the SDK appends `chat/completions`
+  (not `/v1/chat/completions`) to the endpoint URI.
+- **Model ID resolution** — `LocalModelName` in config is an alias; the factory
+  queries `/v1/models` and matches the alias as a case-insensitive prefix to find
+  the actual loaded model ID (e.g. `phi-4` → `Phi-4-trtrtx-gpu:1`)
 - **ChunkSize units** — words (not characters); ChunkOverlap likewise in words
 - **Empty corpus** — crash at startup with clear error if no PDFs found
 - **Scanned PDFs** — return HTTP 400 if no text extracted from upload
@@ -261,5 +282,10 @@ Must include:
 - **Frontend status polling** — poll `/api/status` every 2 seconds until ready
 
 ## Current Task
-_Update this section each session to describe what to work on next._
-Start with step 1: DocumentLoader and SimpleRetriever.
+Implementation complete and running end-to-end. Verified:
+- App starts, loads corpus (4 docs, 31 chunks), connects to Foundry Local CLI service
+- Resolves `phi-4` → `Phi-4-trtrtx-gpu:1` (TensorRT-RTX, optimal for RTX 5090)
+- Generates definition of good successfully across all 4 corpus documents
+- Serves on http://localhost:5194
+
+Next: test `/api/improve` with a real SoW upload via the browser UI.
