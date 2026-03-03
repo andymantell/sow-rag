@@ -101,10 +101,12 @@ On startup the app must:
 1. Load and chunk all PDFs in the KnownGoodFolder
 2. Generate the "definition of good" using the model and cache it in
    memory as a singleton (GoodDefinition). Strategy: one LLM call per
-   document to extract what makes it a good SoW, then a single synthesis
-   call to combine those per-doc summaries into the final definition.
-   This scales as the corpus grows. (Future: trigger regeneration on
-   demand rather than only at startup — out of scope for this PoC.)
+   document to extract what makes it a good SoW across these specific
+   aspects: clarity of deliverables, milestone/acceptance criteria,
+   payment terms, IP ownership, scope boundaries, risk/change control.
+   Then a single synthesis call combines the per-doc summaries into the
+   final definition. This scales as the corpus grows. (Future: trigger
+   regeneration on demand — out of scope for this PoC.)
 3. Log how many documents and chunks were loaded
 4. Be ready to serve requests — do not accept uploads until the 
    definition is ready; return a 503 with a loading message if called early
@@ -143,6 +145,14 @@ On startup the app must:
   with a reason — surface these as warnings in the UI
 - Return the full result as a single JSON response; frontend shows a
   loading spinner while waiting
+- Content before the first detected heading is treated as an implicit
+  "Introduction" section and processed like any other section
+- Each per-section LLM call returns structured JSON:
+  `{ "improved": "...", "flagged": true/false, "flagReason": "..." }`
+  Parse server-side; the `improved` field is used as-is if `flagged` is
+  true (section is surfaced as a warning rather than rewritten differently)
+- `chunksUsed` in the response is deduplicated — each corpus chunk appears
+  once even if retrieved for multiple sections
 
 ## Frontend (index.html)
 Single page with three panels:
@@ -223,10 +233,18 @@ Must include:
 - **LLM improvement strategy** — one call per section, sequential, no section cap
 - **Azure cloud client** — use `AzureOpenAIClient` from `Azure.AI.OpenAI` NuGet
   (separate code path in factory); local uses `OpenAIClient` from `OpenAI` NuGet
-- **ChunkSize units** — words (not characters)
+- **ChunkSize units** — words (not characters); ChunkOverlap likewise in words
 - **Empty corpus** — crash at startup with clear error if no PDFs found
 - **Scanned PDFs** — return HTTP 400 if no text extracted from upload
 - **Upload size limit** — 28 MB (ASP.NET Core default, no extra config)
+- **Per-section LLM response format** — structured JSON `{ "improved", "flagged", "flagReason" }`
+- **Preamble** — content before first heading → implicit "Introduction" section
+- **Definition focus** — deliverables, milestones/acceptance criteria, payment terms,
+  IP ownership, scope boundaries, risk/change control
+- **chunksUsed deduplication** — deduplicated; each chunk appears once in the list
+- **Snippet length** in chunksUsed — truncate to 200 characters
+- **`/api/definition` when not ready** — also returns 503 (same as `/api/improve`)
+- **Frontend status polling** — poll `/api/status` every 2 seconds until ready
 
 ## Current Task
 _Update this section each session to describe what to work on next._
