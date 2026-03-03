@@ -79,10 +79,10 @@ SoWImprover/
 │   ├── GoodDefinition.cs       # Cached definition of good
 │   └── ImprovementResult.cs    # Original + improved + flagged sections
 ├── wwwroot/
-│   └── index.html              # Entire frontend — chat UI, diff view,
+│   └── index.html              # Entire frontend — diff view,
 │                               # definition panel, upload form
-└── sample-sows/                # 3-4 example SoW PDF files for
-                                # out-of-the-box testing
+└── sample-sows/                # Drop real SoW PDFs here before running;
+                                # folder ships with a .gitkeep only
 ```
 
 ## Startup Behaviour
@@ -182,7 +182,7 @@ Implement in this order:
 1. DocumentLoader + SimpleRetriever (verify chunking and retrieval first)
 2. FoundryClientFactory (verify local and cloud config switching works)
 3. DefinitionBuilder (verify definition generation against sample docs)
-4. SoWImprover (verify improvement generation with SSE streaming)
+4. SoWImprover (verify improvement generation — single JSON response)
 5. DiffService (verify before/after preparation)
 6. API endpoints in Program.cs
 7. index.html frontend
@@ -194,6 +194,12 @@ Must include:
 - How to populate the known-good SoW folder
 - How to switch to Azure AI Foundry cloud (config only)
 - How to run with dotnet run
+
+## Decisions (locked in)
+- `/api/improve` returns a **single JSON response** (no SSE streaming)
+- **No chat UI** — three panels only: definition sidebar, upload panel, diff panel
+- **Sample SoWs** — user supplies real PDFs; `sample-sows/` ships with `.gitkeep` only
+- **Project root** — `C:\goaco\AI\SOW-RAG\SoWImprover\` (subfolder of the repo)
 
 ## Current Task
 _Update this section each session to describe what to work on next._
