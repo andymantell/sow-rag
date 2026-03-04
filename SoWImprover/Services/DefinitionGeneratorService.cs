@@ -22,9 +22,9 @@ public class DefinitionGeneratorService(
 
         // Load full document texts for per-document analysis
         var pdfFiles = loader.GetPdfFiles(folder);
-        var documents = pdfFiles
-            .Select(f => (FileName: Path.GetFileName(f), Text: loader.ExtractText(f)))
-            .ToList();
+        var documents = new List<(string FileName, string Text)>(pdfFiles.Length);
+        foreach (var f in pdfFiles)
+            documents.Add((Path.GetFileName(f), await loader.ExtractTextAsync(f, ct)));
 
         logger.LogInformation("Generating definition from {Count} document(s), {Chunks} chunks",
             documents.Count, retriever.ChunkCount);

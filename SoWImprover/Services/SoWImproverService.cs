@@ -17,6 +17,7 @@ public class SoWImproverService(
         var sections = SplitIntoSections(originalText);
 
         var improvedParts = new List<string>(sections.Count);
+        var originalParts = new List<string>(sections.Count);
         var flagged = new List<FlaggedSection>();
         var allChunks = new List<DocumentChunk>();
 
@@ -28,6 +29,8 @@ public class SoWImproverService(
 
             var result = await ImproveSectionAsync(client, section, chunks, definition.MarkdownContent, ct);
             improvedParts.Add(result.ImprovedText);
+            // Reformat original using the detected section headings so both sides are valid markdown
+            originalParts.Add($"## {section.Title}\n\n{section.Body}");
 
             if (result.Flagged)
                 flagged.Add(new FlaggedSection { SectionTitle = section.Title, Reason = result.FlagReason });
@@ -45,7 +48,7 @@ public class SoWImproverService(
 
         return new ImprovementResult
         {
-            Original = originalText,
+            Original = string.Join("\n\n", originalParts),
             Improved = string.Join("\n\n", improvedParts),
             FlaggedSections = flagged,
             ChunksUsed = chunksUsed

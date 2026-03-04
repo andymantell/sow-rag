@@ -1,6 +1,5 @@
 using SoWImprover.Models;
 using SoWImprover.Services;
-using UglyToad.PdfPig;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +63,7 @@ app.MapGet("/api/definition", (GoodDefinition def) =>
 app.MapPost("/api/improve", async (
     HttpRequest request,
     GoodDefinition def,
+    DocumentLoader loader,
     SoWImproverService improver,
     DiffService diffService) =>
 {
@@ -80,21 +80,23 @@ app.MapPost("/api/improve", async (
     if (file is null)
         return Results.BadRequest("No file was uploaded.");
 
-    // Extract text from the PDF
+    // Save to a temp file so pymupdf4llm can read it by path
+    var tempPath = Path.Combine(Path.GetTempPath(), $"sow_{Guid.NewGuid():N}.pdf");
     string originalText;
     try
     {
-        using var ms = new MemoryStream();
-        await file.OpenReadStream().CopyToAsync(ms);
-        using var pdfDoc = PdfDocument.Open(ms.ToArray());
-        var sb = new System.Text.StringBuilder();
-        foreach (var page in pdfDoc.GetPages())
-            sb.AppendLine(page.Text);
-        originalText = sb.ToString().Trim();
+        using (var fs = File.Create(tempPath))
+            await file.OpenReadStream().CopyToAsync(fs);
+
+        originalText = (await loader.ExtractTextAsync(tempPath)).Trim();
     }
-    catch
+    catch (Exception ex)
     {
-        return Results.BadRequest("Failed to parse the uploaded PDF.");
+        return Results.BadRequest($"Failed to extract text from PDF: {ex.Message}");
+    }
+    finally
+    {
+        if (File.Exists(tempPath)) File.Delete(tempPath);
     }
 
     if (string.IsNullOrWhiteSpace(originalText))
