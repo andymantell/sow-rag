@@ -11,7 +11,7 @@
         </button>
     </div>
     <div class="app-sidebar__body">
-        @if (!Definition.IsReady)
+        @if (!IsDefinitionReady)
         {
             <div class="app-loading">
                 <div class="app-loading__ring"></div>
@@ -26,14 +26,20 @@
 </div>
 
 @code {
+    /// <summary>
+    /// Passed from Home so Blazor detects the false→true change and calls OnParametersSet,
+    /// which triggers the one-time markdown render. Without an explicit parameter, Blazor has
+    /// nothing to diff on this component and may skip the lifecycle call.
+    /// </summary>
+    [Parameter] public bool IsDefinitionReady { get; set; }
+
     private bool _collapsed;
     private MarkupString _definitionHtml;
     private bool _definitionHtmlComputed;
 
     protected override void OnParametersSet()
     {
-        // Compute the rendered HTML once, the first time the definition becomes ready.
-        if (Definition.IsReady && !_definitionHtmlComputed)
+        if (IsDefinitionReady && !_definitionHtmlComputed)
         {
             _definitionHtml = MarkdownRenderer.ToMarkupString(Definition.MarkdownContent);
             _definitionHtmlComputed = true;
