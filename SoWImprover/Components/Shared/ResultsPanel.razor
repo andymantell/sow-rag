@@ -92,8 +92,13 @@
     {
         if (Result is not null)
         {
-            _originalHtml = (MarkupString)Markdig.Markdown.ToHtml(Result.Original);
-            _improvedHtml = (MarkupString)Markdig.Markdown.ToHtml(Result.Improved);
+            _originalHtml = MarkdownRenderer.ToMarkupString(Result.Original);
+            _improvedHtml = MarkdownRenderer.ToMarkupString(Result.Improved);
+        }
+        else
+        {
+            _originalHtml = default;
+            _improvedHtml = default;
         }
     }
 }

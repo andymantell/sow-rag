@@ -15,9 +15,16 @@ namespace SoWImprover.Services;
 /// </summary>
 public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFactory> logger)
 {
+    // Long-lived HttpClient instance — avoids socket exhaustion from per-call instantiation.
+    private static readonly HttpClient _http = new();
+
     private ChatClient? _cached;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    /// <summary>
+    /// Returns a <see cref="ChatClient"/> configured for either local Foundry or Azure AI cloud,
+    /// based on the <c>Foundry:UseLocal</c> configuration value. The client is created once and cached.
+    /// </summary>
     public async Task<ChatClient> GetChatClientAsync(CancellationToken ct = default)
     {
         if (_cached is not null) return _cached;
@@ -98,11 +105,10 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
     /// </summary>
     private async Task<string> ResolveModelIdAsync(string baseUrl, string alias, CancellationToken ct)
     {
-        using var http = new HttpClient();
         string json;
         try
         {
-            json = await http.GetStringAsync($"{baseUrl}/v1/models", ct);
+            json = await _http.GetStringAsync($"{baseUrl}/v1/models", ct);
         }
         catch (Exception ex)
         {

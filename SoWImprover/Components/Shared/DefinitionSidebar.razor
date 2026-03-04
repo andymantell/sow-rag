@@ -1,5 +1,4 @@
 @inject GoodDefinition Definition
-@implements IDisposable
 
 <div class="app-sidebar @(_collapsed ? "collapsed" : "")">
     <div class="app-sidebar__header">
@@ -21,33 +20,25 @@
         }
         else
         {
-            @((MarkupString)Markdig.Markdown.ToHtml(Definition.MarkdownContent))
+            @_definitionHtml
         }
     </div>
 </div>
 
 @code {
     private bool _collapsed;
-    private readonly CancellationTokenSource _cts = new();
+    private MarkupString _definitionHtml;
+    private bool _definitionHtmlComputed;
 
-    protected override Task OnInitializedAsync()
+    protected override void OnParametersSet()
     {
-        if (!Definition.IsReady)
-            _ = PollUntilReadyAsync(_cts.Token);
-        return Task.CompletedTask;
-    }
-
-    private async Task PollUntilReadyAsync(CancellationToken ct)
-    {
-        while (!Definition.IsReady && !ct.IsCancellationRequested)
+        // Compute the rendered HTML once, the first time the definition becomes ready.
+        if (Definition.IsReady && !_definitionHtmlComputed)
         {
-            await Task.Delay(2000, ct);
-            await InvokeAsync(StateHasChanged);
+            _definitionHtml = MarkdownRenderer.ToMarkupString(Definition.MarkdownContent);
+            _definitionHtmlComputed = true;
         }
-        await InvokeAsync(StateHasChanged);
     }
 
     private void ToggleCollapsed() => _collapsed = !_collapsed;
-
-    public void Dispose() => _cts.Cancel();
 }

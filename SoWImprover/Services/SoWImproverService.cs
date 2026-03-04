@@ -9,6 +9,20 @@ public class SoWImproverService(
     SimpleRetriever retriever,
     ILogger<SoWImproverService> logger)
 {
+    // Truncation limits keep prompts within a model's context window.
+    private const int MaxDefinitionChars = 3_000;
+
+    // Token budgets for each LLM call type.
+    private const int ImprovementMaxTokens = 2048;
+    private const int ExplanationMaxTokens = 300;
+
+    // Corpus chunk snippets are capped at this length in the response.
+    private const int SnippetMaxChars = 200;
+
+    /// <summary>
+    /// Improves the uploaded SoW <paramref name="originalText"/> section by section,
+    /// using the corpus definition and per-section TF-IDF retrieval for grounding.
+    /// </summary>
     public async Task<ImprovementResult> ImproveAsync(
         string originalText, GoodDefinition definition, CancellationToken ct = default)
     {
@@ -41,7 +55,7 @@ public class SoWImproverService(
             .Select(c => new ChunkReference
             {
                 SourceFile = c.SourceFile,
-                Snippet = c.Text.Length > 200 ? c.Text[..200] + "…" : c.Text
+                Snippet = c.Text.Length > SnippetMaxChars ? c.Text[..SnippetMaxChars] + "…" : c.Text
             })
             .ToList();
 
@@ -61,9 +75,8 @@ public class SoWImproverService(
         string definition,
         CancellationToken ct)
     {
-        const int maxDefChars = 3000;
-        if (definition.Length > maxDefChars)
-            definition = definition[..maxDefChars] + "\n[definition truncated]";
+        if (definition.Length > MaxDefinitionChars)
+            definition = definition[..MaxDefinitionChars] + "\n[definition truncated]";
 
         var context = chunks.Count > 0
             ? string.Join("\n\n", chunks.Select(c => $"[{c.SourceFile}]: {c.Text}"))
@@ -87,7 +100,7 @@ public class SoWImproverService(
             No preamble, no explanation — just the improved section text.
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = ImprovementMaxTokens };
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 
@@ -117,7 +130,7 @@ public class SoWImproverService(
             Be specific. No preamble.
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 300 };
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = ExplanationMaxTokens };
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 

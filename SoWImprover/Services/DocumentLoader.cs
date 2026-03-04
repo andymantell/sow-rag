@@ -9,9 +9,18 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
     private readonly int _chunkOverlap = config.GetValue<int>("Docs:ChunkOverlap", 50);
     private string? _pythonExe;
 
+    // Cache of raw extracted texts keyed by filename, populated during LoadFolder.
+    // Allows DefinitionGeneratorService to reuse the text without a second subprocess call.
+    private readonly Dictionary<string, string> _extractedTexts = new();
+
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /// <summary>Loads and chunks all PDFs in the folder. Called synchronously at startup.</summary>
+    /// <summary>
+    /// Loads and chunks all PDFs in the folder. Called synchronously at startup.
+    /// Also caches the raw extracted text of each document for use by
+    /// <see cref="GetCachedTexts"/>, avoiding duplicate subprocess calls.
+    /// Throws if no PDFs are found.
+    /// </summary>
     public List<DocumentChunk> LoadFolder(string folderPath)
     {
         var fullPath = Path.GetFullPath(folderPath);
@@ -21,14 +30,23 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
             throw new InvalidOperationException(
                 $"No PDFs found in KnownGoodFolder '{fullPath}' — populate the folder before starting.");
 
+        _extractedTexts.Clear();
         var chunks = new List<DocumentChunk>();
         foreach (var file in files)
         {
             var text = ExtractText(file);
+            _extractedTexts[Path.GetFileName(file)] = text;
             chunks.AddRange(ChunkText(text, Path.GetFileName(file)));
         }
         return chunks;
     }
+
+    /// <summary>
+    /// Returns the raw texts extracted during the most recent <see cref="LoadFolder"/> call.
+    /// Avoids re-running the Python subprocess for corpus documents already extracted at startup.
+    /// </summary>
+    public IReadOnlyList<(string FileName, string Text)> GetCachedTexts()
+        => _extractedTexts.Select(kv => (kv.Key, kv.Value)).ToList();
 
     /// <summary>Synchronous extraction — used during corpus loading at startup.</summary>
     public string ExtractText(string filePath)
@@ -40,9 +58,6 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
     /// <summary>Async extraction — used for uploaded PDFs during a request.</summary>
     public Task<string> ExtractTextAsync(string filePath, CancellationToken ct = default)
         => Task.Run(() => RunPythonScript(filePath), ct);
-
-    public string[] GetPdfFiles(string folderPath)
-        => Directory.GetFiles(Path.GetFullPath(folderPath), "*.pdf", SearchOption.TopDirectoryOnly);
 
     // ── PDF extraction via pymupdf4llm subprocess ─────────────────────────────
 

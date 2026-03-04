@@ -1,7 +1,7 @@
 @inject GoodDefinition Definition
-@inject SoWImprover.Services.DocumentLoader DocumentLoader
-@inject SoWImprover.Services.SoWImproverService Improver
-@inject SoWImprover.Services.DiffService DiffService
+@inject DocumentLoader DocumentLoader
+@inject SoWImproverService Improver
+@inject DiffService DiffService
 
 <!-- Upload toolbar -->
 <div class="app-toolbar">
@@ -35,6 +35,8 @@
 </div>
 
 @code {
+    private const long MaxUploadBytes = 28 * 1024 * 1024; // matches ASP.NET Core default
+
     [Parameter] public EventCallback<ImprovementResult> OnImproved { get; set; }
 
     private IBrowserFile? _selectedFile;
@@ -61,7 +63,7 @@
         try
         {
             using (var fs = File.Create(tempPath))
-            await using (var stream = _selectedFile.OpenReadStream(28 * 1024 * 1024))
+            await using (var stream = _selectedFile.OpenReadStream(MaxUploadBytes))
                 await stream.CopyToAsync(fs);
 
             var originalText = (await DocumentLoader.ExtractTextAsync(tempPath)).Trim();
@@ -91,6 +93,7 @@
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
             _isImproving = false;
+            StateHasChanged();
         }
     }
 }

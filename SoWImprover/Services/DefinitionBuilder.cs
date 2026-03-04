@@ -5,6 +5,18 @@ namespace SoWImprover.Services;
 
 public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionBuilder> logger)
 {
+    // Truncation limits keep prompts within a model's context window.
+    private const int MaxDocChars = 12_000;
+
+    // Token budget for each LLM call.
+    private const int AnalysisMaxTokens = 2048;
+    private const int SynthesisMaxTokens = 2048;
+
+    /// <summary>
+    /// Generates a "definition of good" markdown document by analysing each corpus document
+    /// individually and then synthesising a section-by-section definition from those analyses.
+    /// </summary>
+    /// <param name="documents">Filename/text pairs for every document in the known-good corpus.</param>
     public async Task<string> BuildDefinitionAsync(
         IReadOnlyList<(string FileName, string Text)> documents,
         CancellationToken ct = default)
@@ -25,10 +37,8 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
     private static async Task<string> AnalyseDocumentAsync(
         ChatClient client, string fileName, string text, CancellationToken ct)
     {
-        // Truncate to avoid overflowing context window
-        const int maxChars = 12_000;
-        if (text.Length > maxChars)
-            text = text[..maxChars] + "\n[truncated]";
+        if (text.Length > MaxDocChars)
+            text = text[..MaxDocChars] + "\n[truncated]";
 
         var prompt = $"""
             You are an expert in Statements of Work (SoW) documents.
@@ -51,7 +61,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             {text}
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = AnalysisMaxTokens };
         var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
         return result.Value.Content[0].Text;
     }
@@ -99,7 +109,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
                 {joined}
                 """;
 
-            var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
+            var opts = new ChatCompletionOptions { MaxOutputTokenCount = SynthesisMaxTokens };
             var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
             sectionTexts.Add(result.Value.Content[0].Text.Trim());
         }

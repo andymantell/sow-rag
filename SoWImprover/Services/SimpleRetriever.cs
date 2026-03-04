@@ -8,16 +8,24 @@ public class SimpleRetriever
     private readonly Dictionary<string, double> _idf;
     private readonly int _topK;
 
+    /// <summary>Total number of chunks loaded from the corpus.</summary>
     public int ChunkCount => _chunks.Count;
-    public int DocumentCount => _chunks.Select(c => c.SourceFile).Distinct().Count();
+
+    /// <summary>Number of distinct source documents in the corpus.</summary>
+    public int DocumentCount { get; }
 
     public SimpleRetriever(List<DocumentChunk> chunks, IConfiguration config)
     {
         _chunks = chunks;
         _topK = config.GetValue<int>("Docs:TopKChunks", 5);
         _idf = ComputeIdf(chunks);
+        DocumentCount = chunks.Select(c => c.SourceFile).Distinct().Count();
     }
 
+    /// <summary>
+    /// Returns the top-<em>k</em> chunks from the corpus most relevant to <paramref name="query"/>
+    /// using TF-IDF cosine similarity.
+    /// </summary>
     public List<DocumentChunk> Retrieve(string query)
     {
         var queryVec = ComputeTfIdf(Tokenize(query), _idf);

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject GoodDefinition Definition
 @inject IConfiguration Config
+@inject ILogger<Home> Logger
 @implements IDisposable
 
 <header class="govuk-header" role="banner">
@@ -18,7 +19,7 @@
 <!-- Status bar -->
 <div class="app-status-bar">
     <div class="app-status-bar__info">
-        <span>@ModelLabel</span>
+        <span>@_modelLabel</span>
         <span class="app-status-bar__sep" aria-hidden="true">·</span>
         @if (Definition.IsReady)
         {
@@ -43,15 +44,15 @@
 
 @code {
     private ImprovementResult? _result;
+    private string _modelLabel = "";
     private readonly CancellationTokenSource _cts = new();
-
-    private string ModelLabel =>
-        Config.GetValue<bool>("Foundry:UseLocal")
-            ? $"Local · {Config["Foundry:LocalModelName"]}"
-            : $"Cloud · {Config["Foundry:CloudModelName"]}";
 
     protected override Task OnInitializedAsync()
     {
+        _modelLabel = Config.GetValue<bool>("Foundry:UseLocal")
+            ? $"Local · {Config["Foundry:LocalModelName"]}"
+            : $"Cloud · {Config["Foundry:CloudModelName"]}";
+
         if (!Definition.IsReady)
             _ = PollUntilReadyAsync(_cts.Token);
         return Task.CompletedTask;
@@ -59,12 +60,23 @@
 
     private async Task PollUntilReadyAsync(CancellationToken ct)
     {
-        while (!Definition.IsReady && !ct.IsCancellationRequested)
+        try
         {
-            await Task.Delay(2000, ct);
+            while (!Definition.IsReady && !ct.IsCancellationRequested)
+            {
+                await Task.Delay(2000, ct);
+                await InvokeAsync(StateHasChanged);
+            }
             await InvokeAsync(StateHasChanged);
         }
-        await InvokeAsync(StateHasChanged);
+        catch (OperationCanceledException)
+        {
+            // Expected when the component is disposed — no action needed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Unexpected error in definition polling loop");
+        }
     }
 
     private void HandleImproved(ImprovementResult result)
@@ -72,5 +84,9 @@
         _result = result;
     }
 
-    public void Dispose() => _cts.Cancel();
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
 }
