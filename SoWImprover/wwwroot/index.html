@@ -51,16 +51,19 @@
 
     /* ── Sidebar ── */
     aside {
-      width: 280px;
-      min-width: 200px;
-      max-width: 380px;
+      width: 550px;
+      min-width: 36px;
       background: #fff;
       border-right: 1px solid #e0e0e0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       flex-shrink: 0;
+      transition: width .2s ease;
     }
+    aside.collapsed { width: 36px; }
+    aside.collapsed .def-title,
+    aside.collapsed #definition-content { display: none; }
     aside h2 {
       font-size: 13px;
       font-weight: 700;
@@ -70,7 +73,22 @@
       padding: 12px 14px 8px;
       border-bottom: 1px solid #eee;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      white-space: nowrap;
     }
+    #def-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: #555;
+      padding: 0 0 0 8px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    #def-toggle:hover { color: #111; }
     #definition-content {
       flex: 1;
       overflow-y: auto;
@@ -299,8 +317,11 @@
 <div class="layout">
 
   <!-- ── Definition sidebar ── -->
-  <aside>
-    <h2>Definition of Good</h2>
+  <aside id="def-aside">
+    <h2>
+      <span class="def-title">Definition of Good</span>
+      <button id="def-toggle" type="button" title="Collapse panel">◀</button>
+    </h2>
     <div id="definition-content">
       <div class="loading-spinner">
         <div class="ring"></div>
@@ -528,6 +549,15 @@
       list.classList.toggle('open');
     };
   }
+
+  // ── Definition panel collapse ─────────────────────────────────────────────
+  document.getElementById('def-toggle').addEventListener('click', () => {
+    const aside = document.getElementById('def-aside');
+    const btn = document.getElementById('def-toggle');
+    const collapsed = aside.classList.toggle('collapsed');
+    btn.textContent = collapsed ? '▶' : '◀';
+    btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+  });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   pollStatus();
