@@ -234,6 +234,8 @@
       background: #ffffff;
       border-top: 1px solid #b1b4b6;
       padding: 8px 20px;
+      max-height: 280px;
+      overflow-y: auto;
     }
     .app-annotations.visible { display: block; }
     .app-annotations .govuk-details { margin: 0; }
@@ -484,7 +486,7 @@
 
       <!-- What changed annotations -->
       <div class="app-annotations" id="annotations-section">
-        <details class="govuk-details" id="annotations-details">
+        <details class="govuk-details" id="annotations-details" open>
           <summary class="govuk-details__summary">
             <span class="govuk-details__summary-text">What was improved</span>
           </summary>
@@ -605,6 +607,7 @@
           errEl.textContent = data.detail || data.title || 'Improvement failed.';
           return;
         }
+        console.log('annotations:', data.annotations);
         renderResult(data);
       } catch (e) {
         errEl.textContent = 'Error: ' + e.message;
