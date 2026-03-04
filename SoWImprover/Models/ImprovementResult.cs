@@ -4,14 +4,14 @@ public class ImprovementResult
 {
     public string Original { get; init; } = "";
     public string Improved { get; init; } = "";
-    public List<FlaggedSection> FlaggedSections { get; init; } = [];
+    public List<SectionAnnotation> Annotations { get; init; } = [];
     public List<ChunkReference> ChunksUsed { get; init; } = [];
 }
 
-public class FlaggedSection
+public class SectionAnnotation
 {
     public string SectionTitle { get; init; } = "";
-    public string Reason { get; init; } = "";
+    public string Explanation { get; init; } = "";
 }
 
 public class ChunkReference

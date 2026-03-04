@@ -7,7 +7,6 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/govuk-frontend@6.1.0/dist/govuk/govuk-frontend.min.css">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
 
   <style>
     /* ── Full-height application layout overrides ─────────────── */
@@ -228,26 +227,34 @@
       font-weight: 700;
     }
 
-    /* ── Flags (notification banner) ─────────────────────────── */
-    #flags-bar {
+    /* ── Annotations (what changed) ──────────────────────────── */
+    .app-annotations {
       display: none;
       flex-shrink: 0;
+      background: #ffffff;
+      border-top: 1px solid #b1b4b6;
+      padding: 8px 20px;
+    }
+    .app-annotations.visible { display: block; }
+    .app-annotations .govuk-details { margin: 0; }
+    .annotation-item {
+      font-family: "GDS Transport", arial, sans-serif;
+      font-size: 14px;
+      color: #0b0c0c;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f2f1;
+    }
+    .annotation-item:last-child { border-bottom: none; }
+    .annotation-item__title {
+      font-weight: 700;
+      color: #1d70b8;
+      margin-bottom: 4px;
+    }
+    .annotation-item__bullets {
       margin: 0;
+      padding-left: 20px;
     }
-    #flags-bar.visible { display: block; }
-    /* Override notification banner margin in our layout */
-    #flags-bar .govuk-notification-banner {
-      margin: 0;
-    }
-    .flag-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .flag-badge {
-      cursor: help;
-    }
+    .annotation-item__bullets li { margin-bottom: 2px; }
 
     /* ── Diff area ────────────────────────────────────────────── */
     .app-diff-area {
@@ -475,19 +482,14 @@
         </div>
       </div>
 
-      <!-- Flagged sections notification -->
-      <div id="flags-bar">
-        <div class="govuk-notification-banner" role="region" aria-labelledby="flags-banner-title">
-          <div class="govuk-notification-banner__header">
-            <h2 class="govuk-notification-banner__title" id="flags-banner-title">Structural warnings</h2>
-          </div>
-          <div class="govuk-notification-banner__content">
-            <p class="govuk-body govuk-!-margin-bottom-1">
-              The following sections may need structural changes — review them alongside the improved version.
-            </p>
-            <div class="flag-badges" id="flag-badges-container"></div>
-          </div>
-        </div>
+      <!-- What changed annotations -->
+      <div class="app-annotations" id="annotations-section">
+        <details class="govuk-details" id="annotations-details">
+          <summary class="govuk-details__summary">
+            <span class="govuk-details__summary-text">What was improved</span>
+          </summary>
+          <div class="govuk-details__text" id="annotations-list"></div>
+        </details>
       </div>
 
       <!-- Diff area -->
@@ -614,51 +616,27 @@
 
     // ── Render result ─────────────────────────────────────────────────────────
     function renderResult(data) {
-      // Flags
-      const flagsBar = document.getElementById('flags-bar');
-      const container = document.getElementById('flag-badges-container');
-      container.innerHTML = '';
-
-      if (data.flaggedSections && data.flaggedSections.length > 0) {
-        data.flaggedSections.forEach(f => {
-          const tag = document.createElement('strong');
-          tag.className = 'govuk-tag govuk-tag--yellow flag-badge';
-          tag.textContent = f.sectionTitle;
-          tag.title = f.reason;
-          container.appendChild(tag);
-        });
-        flagsBar.classList.add('visible');
-      } else {
-        flagsBar.classList.remove('visible');
-      }
-
-      // Diff
-      const original = data.original || '';
-      const improved = data.improved || '';
-      const { originalHtml, improvedHtml } = buildDiffHtml(original, improved);
-
-      document.getElementById('col-original').innerHTML = marked.parse(originalHtml);
-      document.getElementById('col-improved').innerHTML = marked.parse(improvedHtml);
+      const { originalHtml, improvedHtml } = buildDiffHtml(data.original || '', data.improved || '');
+      document.getElementById('col-original').innerHTML = originalHtml;
+      document.getElementById('col-improved').innerHTML = improvedHtml;
 
       document.getElementById('diff-placeholder').style.display = 'none';
       document.getElementById('diff-panels').classList.add('visible');
 
+      renderAnnotations(data.annotations || []);
       renderSources(data.chunksUsed || []);
     }
 
-    // ── Word-level diff ───────────────────────────────────────────────────────
+    // ── Render both sides ─────────────────────────────────────────────────────
+    // Word/line-level diffing cannot be safely applied to either raw markdown
+    // (breaks table pipe syntax) or rendered HTML (diffWords splits tag tokens
+    // like '<', 'h3', '>' causing orphaned fragments). Render each side
+    // independently — the side-by-side layout is sufficient for visual comparison.
     function buildDiffHtml(original, improved) {
-      const parts = Diff.diffWords(original, improved);
-      let origHtml = '', imprHtml = '';
-
-      parts.forEach(part => {
-        const text = escapeHtml(part.value);
-        if (part.added)        imprHtml += `<ins>${text}</ins>`;
-        else if (part.removed) origHtml += `<del>${text}</del>`;
-        else { origHtml += text; imprHtml += text; }
-      });
-
-      return { originalHtml: origHtml, improvedHtml: imprHtml };
+      return {
+        originalHtml: marked.parse(original),
+        improvedHtml: marked.parse(improved)
+      };
     }
 
     function escapeHtml(str) {
@@ -666,6 +644,33 @@
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    }
+
+    // ── Annotations ───────────────────────────────────────────────────────────
+    function renderAnnotations(annotations) {
+      const section = document.getElementById('annotations-section');
+      const list    = document.getElementById('annotations-list');
+
+      if (!annotations.length) { section.classList.remove('visible'); return; }
+
+      list.innerHTML = annotations.map(a => {
+        // The explanation is bullet points starting with '-'; render as a <ul>
+        const bullets = a.explanation
+          .split('\n')
+          .map(l => l.trim())
+          .filter(l => l.startsWith('-'))
+          .map(l => `<li>${escapeHtml(l.slice(1).trim())}</li>`)
+          .join('');
+        const fallback = bullets
+          ? `<ul class="annotation-item__bullets">${bullets}</ul>`
+          : `<p>${escapeHtml(a.explanation)}</p>`;
+        return `<div class="annotation-item">
+          <div class="annotation-item__title">${escapeHtml(a.sectionTitle)}</div>
+          ${fallback}
+        </div>`;
+      }).join('');
+
+      section.classList.add('visible');
     }
 
     // ── Sources ───────────────────────────────────────────────────────────────

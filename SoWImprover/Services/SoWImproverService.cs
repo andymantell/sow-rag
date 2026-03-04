@@ -1,7 +1,5 @@
 using OpenAI.Chat;
 using SoWImprover.Models;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace SoWImprover.Services;
 
@@ -18,7 +16,7 @@ public class SoWImproverService(
 
         var improvedParts = new List<string>(sections.Count);
         var originalParts = new List<string>(sections.Count);
-        var flagged = new List<FlaggedSection>();
+        var annotations = new List<SectionAnnotation>();
         var allChunks = new List<DocumentChunk>();
 
         foreach (var section in sections)
@@ -27,13 +25,13 @@ public class SoWImproverService(
             var chunks = retriever.Retrieve(section.Body);
             allChunks.AddRange(chunks);
 
-            var result = await ImproveSectionAsync(client, section, chunks, definition.MarkdownContent, ct);
-            improvedParts.Add(result.ImprovedText);
-            // Reformat original using the detected section headings so both sides are valid markdown
+            var improved = await ImproveSectionAsync(client, section, chunks, definition.MarkdownContent, ct);
+            improvedParts.Add(improved);
             originalParts.Add($"## {section.Title}\n\n{section.Body}");
 
-            if (result.Flagged)
-                flagged.Add(new FlaggedSection { SectionTitle = section.Title, Reason = result.FlagReason });
+            var explanation = await ExplainChangesAsync(client, section, improved, ct);
+            if (!string.IsNullOrWhiteSpace(explanation))
+                annotations.Add(new SectionAnnotation { SectionTitle = section.Title, Explanation = explanation });
         }
 
         var chunksUsed = allChunks
@@ -50,19 +48,18 @@ public class SoWImproverService(
         {
             Original = string.Join("\n\n", originalParts),
             Improved = string.Join("\n\n", improvedParts),
-            FlaggedSections = flagged,
+            Annotations = annotations,
             ChunksUsed = chunksUsed
         };
     }
 
-    private static async Task<SectionResult> ImproveSectionAsync(
+    private static async Task<string> ImproveSectionAsync(
         ChatClient client,
         DocumentSection section,
         List<DocumentChunk> chunks,
         string definition,
         CancellationToken ct)
     {
-        // Cap the definition to avoid consuming most of the context window
         const int maxDefChars = 3000;
         if (definition.Length > maxDefChars)
             definition = definition[..maxDefChars] + "\n[definition truncated]";
@@ -85,50 +82,45 @@ public class SoWImproverService(
             Content:
             {{section.Body}}
 
-            Instructions:
-            - Improve the content to better align with the Definition of Good.
-            - Preserve the section's purpose and topic.
-            - Start your improved text with the section heading as a markdown ## heading.
-            - If the section's STRUCTURE fundamentally needs to change (missing key sub-sections,
-              wrong overall approach), set "flagged" to true with a brief reason.
-            - If only content needs improving, set "flagged" to false.
-
-            Respond with ONLY a JSON object — no markdown fences, no extra text:
-            {"improved": "## {{section.Title}}\n\nImproved content here...", "flagged": false, "flagReason": ""}
+            Write the improved section. Start with the section heading as a markdown ## heading.
+            No preamble, no explanation — just the improved section text.
             """;
 
         var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 
-        return ParseSectionResponse(completion.Value.Content[0].Text, section);
-    }
-
-    private static SectionResult ParseSectionResponse(string responseText, DocumentSection section)
-    {
-        var text = responseText.Trim();
-
-        // Strip markdown code fences if the model added them despite instructions
+        var text = completion.Value.Content[0].Text.Trim();
         if (text.StartsWith("```"))
         {
             text = Regex.Replace(text, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
             text = text.TrimEnd('`', '\n', ' ');
         }
+        return text;
+    }
 
-        try
-        {
-            using var doc = JsonDocument.Parse(text);
-            var root = doc.RootElement;
-            return new SectionResult(
-                root.GetProperty("improved").GetString() ?? $"## {section.Title}\n\n{section.Body}",
-                root.GetProperty("flagged").GetBoolean(),
-                root.GetProperty("flagReason").GetString() ?? "");
-        }
-        catch
-        {
-            // Fallback: use raw response as improved text
-            return new SectionResult($"## {section.Title}\n\n{text}", false, "");
-        }
+    private static async Task<string> ExplainChangesAsync(
+        ChatClient client,
+        DocumentSection section,
+        string improvedText,
+        CancellationToken ct)
+    {
+        var prompt = $"""
+            Original section "{section.Title}":
+            {section.Body}
+
+            Improved section:
+            {improvedText}
+
+            List the key improvements made, as 2-4 concise bullet points starting with a dash.
+            Be specific. No preamble.
+            """;
+
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 300 };
+        var completion = await client.CompleteChatAsync(
+            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
+
+        return completion.Value.Content[0].Text.Trim();
     }
 
     internal static List<DocumentSection> SplitIntoSections(string text)
@@ -173,4 +165,3 @@ public class SoWImproverService(
 }
 
 internal record DocumentSection(string Title, string Body);
-internal record SectionResult(string ImprovedText, bool Flagged, string FlagReason);

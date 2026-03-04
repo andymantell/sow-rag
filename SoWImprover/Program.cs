@@ -112,7 +112,7 @@ app.MapPost("/api/improve", async (
         {
             Original = normOriginal,
             Improved = normImproved,
-            FlaggedSections = result.FlaggedSections,
+            Annotations = result.Annotations,
             ChunksUsed = result.ChunksUsed
         });
     }
