@@ -59,6 +59,11 @@ public class SoWImproverService(
         string definition,
         CancellationToken ct)
     {
+        // Cap the definition to avoid consuming most of the context window
+        const int maxDefChars = 3000;
+        if (definition.Length > maxDefChars)
+            definition = definition[..maxDefChars] + "\n[definition truncated]";
+
         var context = chunks.Count > 0
             ? string.Join("\n\n", chunks.Select(c => $"[{c.SourceFile}]: {c.Text}"))
             : "No relevant examples found.";
@@ -89,8 +94,9 @@ public class SoWImproverService(
             {"improved": "## {{section.Title}}\n\nImproved content here...", "flagged": false, "flagReason": ""}
             """;
 
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
         var completion = await client.CompleteChatAsync(
-            [new UserChatMessage(prompt)], cancellationToken: ct);
+            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 
         return ParseSectionResponse(completion.Value.Content[0].Text, section);
     }
