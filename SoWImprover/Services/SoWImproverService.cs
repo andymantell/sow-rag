@@ -1,5 +1,6 @@
 using OpenAI.Chat;
 using SoWImprover.Models;
+using System.Text.RegularExpressions;
 
 namespace SoWImprover.Services;
 

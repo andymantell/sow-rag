@@ -41,7 +41,9 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             5. Scope boundaries
             6. Risk and change control
 
-            For each aspect write a short paragraph noting what this document does well, with specific examples.
+            For each aspect write a short paragraph describing the abstract principles and patterns this document
+            demonstrates. Do NOT quote specific text, names, figures, dates, or other content from the document —
+            describe only the structural and editorial patterns in general terms.
             Use the heading "## Aspect N: <name>" for each section.
 
             Document: {fileName}
@@ -87,6 +89,10 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
 
                 Describe the standards and best practices that characterise a high-quality SoW for this aspect,
                 drawing on the patterns observed across all documents. Be specific and actionable.
+                The output must be generic, reusable guidance applicable to any SoW — do not reference specific
+                document names, supplier or client names, monetary values, dates, project titles, or any other
+                concrete details drawn from the source documents. Write as if authoring a style guide for a
+                procurement team, not a summary of particular contracts.
                 Output only the section heading and body — no preamble, no other sections.
 
                 ---
