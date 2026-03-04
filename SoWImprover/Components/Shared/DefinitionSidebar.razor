@@ -1,0 +1,53 @@
+@inject GoodDefinition Definition
+@implements IDisposable
+
+<div class="app-sidebar @(_collapsed ? "collapsed" : "")">
+    <div class="app-sidebar__header">
+        <span class="app-sidebar__title">Definition of Good</span>
+        <button class="app-sidebar__toggle"
+                type="button"
+                title="@(_collapsed ? "Expand panel" : "Collapse panel")"
+                @onclick="ToggleCollapsed">
+            @(_collapsed ? "▶" : "◀")
+        </button>
+    </div>
+    <div class="app-sidebar__body">
+        @if (!Definition.IsReady)
+        {
+            <div class="app-loading">
+                <div class="app-loading__ring"></div>
+                <p class="app-loading__text">Generating definition of good…</p>
+            </div>
+        }
+        else
+        {
+            @((MarkupString)Markdig.Markdown.ToHtml(Definition.MarkdownContent))
+        }
+    </div>
+</div>
+
+@code {
+    private bool _collapsed;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override Task OnInitializedAsync()
+    {
+        if (!Definition.IsReady)
+            _ = PollUntilReadyAsync(_cts.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task PollUntilReadyAsync(CancellationToken ct)
+    {
+        while (!Definition.IsReady && !ct.IsCancellationRequested)
+        {
+            await Task.Delay(2000, ct);
+            await InvokeAsync(StateHasChanged);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleCollapsed() => _collapsed = !_collapsed;
+
+    public void Dispose() => _cts.Cancel();
+}

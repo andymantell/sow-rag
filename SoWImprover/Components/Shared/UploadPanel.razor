@@ -1,0 +1,96 @@
+@inject GoodDefinition Definition
+@inject SoWImprover.Services.DocumentLoader DocumentLoader
+@inject SoWImprover.Services.SoWImproverService Improver
+@inject SoWImprover.Services.DiffService DiffService
+
+<!-- Upload toolbar -->
+<div class="app-toolbar">
+    <div class="app-toolbar__row">
+        <div class="app-toolbar__file">
+            <div class="govuk-form-group">
+                <label class="govuk-label" for="file-input">Upload SoW PDF</label>
+                <InputFile id="file-input"
+                           class="govuk-file-upload"
+                           accept="application/pdf"
+                           OnChange="HandleFileSelected" />
+            </div>
+        </div>
+        <div class="app-toolbar__actions">
+            <button class="govuk-button"
+                    type="button"
+                    disabled="@(!CanImprove)"
+                    @onclick="HandleImproveClicked">
+                Improve document
+            </button>
+            @if (_isImproving)
+            {
+                <div class="app-spinner"></div>
+            }
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <span class="app-upload-error">@_errorMessage</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback<ImprovementResult> OnImproved { get; set; }
+
+    private IBrowserFile? _selectedFile;
+    private bool _isImproving;
+    private string _errorMessage = "";
+
+    private bool CanImprove => Definition.IsReady && _selectedFile != null && !_isImproving;
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _errorMessage = "";
+    }
+
+    private async Task HandleImproveClicked()
+    {
+        if (_selectedFile is null) return;
+
+        _isImproving = true;
+        _errorMessage = "";
+        StateHasChanged();
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"sow_{Guid.NewGuid():N}.pdf");
+        try
+        {
+            using (var fs = File.Create(tempPath))
+            await using (var stream = _selectedFile.OpenReadStream(28 * 1024 * 1024))
+                await stream.CopyToAsync(fs);
+
+            var originalText = (await DocumentLoader.ExtractTextAsync(tempPath)).Trim();
+
+            if (string.IsNullOrWhiteSpace(originalText))
+            {
+                _errorMessage = "No text could be extracted — PDF may be scanned or image-based.";
+                return;
+            }
+
+            var result = await Improver.ImproveAsync(originalText, Definition);
+            var (normOriginal, normImproved) = DiffService.Prepare(result.Original, result.Improved);
+
+            await OnImproved.InvokeAsync(new ImprovementResult
+            {
+                Original = normOriginal,
+                Improved = normImproved,
+                Annotations = result.Annotations,
+                ChunksUsed = result.ChunksUsed
+            });
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+            _isImproving = false;
+        }
+    }
+}

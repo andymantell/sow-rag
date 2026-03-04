@@ -1,0 +1,99 @@
+<div class="app-diff-area">
+
+    @if (Result is null)
+    {
+        <div class="diff-placeholder">
+            <p class="govuk-body-l">Upload a SoW PDF and click <strong>Improve document</strong> to see results.</p>
+        </div>
+    }
+    else
+    {
+        @if (Result.Annotations.Count > 0)
+        {
+            <div class="app-annotations">
+                <details class="govuk-details" open>
+                    <summary class="govuk-details__summary">
+                        <span class="govuk-details__summary-text">What was improved</span>
+                    </summary>
+                    <div class="govuk-details__text">
+                        @foreach (var ann in Result.Annotations)
+                        {
+                            <div class="annotation-item">
+                                <div class="annotation-item__title">@ann.SectionTitle</div>
+                                @{
+                                    var bullets = ann.Explanation
+                                        .Split('\n')
+                                        .Select(l => l.Trim())
+                                        .Where(l => l.StartsWith("-"))
+                                        .Select(l => l[1..].Trim())
+                                        .ToList();
+                                }
+                                @if (bullets.Count > 0)
+                                {
+                                    <ul class="annotation-item__bullets">
+                                        @foreach (var b in bullets)
+                                        {
+                                            <li>@b</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p>@ann.Explanation</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                </details>
+            </div>
+        }
+
+        <div class="diff-panels">
+            <div class="diff-header-row">
+                <div class="diff-col-header">Original</div>
+                <div class="diff-col-header">Improved</div>
+            </div>
+            <div class="diff-cols">
+                <div class="diff-col">@_originalHtml</div>
+                <div class="diff-col">@_improvedHtml</div>
+            </div>
+        </div>
+
+        @if (Result.ChunksUsed.Count > 0)
+        {
+            <div class="app-sources">
+                <details class="govuk-details">
+                    <summary class="govuk-details__summary">
+                        <span class="govuk-details__summary-text">Sources used from corpus</span>
+                    </summary>
+                    <div class="govuk-details__text">
+                        @foreach (var chunk in Result.ChunksUsed)
+                        {
+                            <div class="source-item">
+                                <strong>@chunk.SourceFile</strong><br />
+                                @chunk.Snippet
+                            </div>
+                        }
+                    </div>
+                </details>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public ImprovementResult? Result { get; set; }
+
+    private MarkupString _originalHtml;
+    private MarkupString _improvedHtml;
+
+    protected override void OnParametersSet()
+    {
+        if (Result is not null)
+        {
+            _originalHtml = (MarkupString)Markdig.Markdown.ToHtml(Result.Original);
+            _improvedHtml = (MarkupString)Markdig.Markdown.ToHtml(Result.Improved);
+        }
+    }
+}
