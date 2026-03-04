@@ -49,39 +49,62 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             {text}
             """;
 
-        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], cancellationToken: ct);
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
+        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
         return result.Value.Content[0].Text;
     }
 
-    private static async Task<string> SynthesiseAsync(
+    private static readonly (string Heading, string AspectName)[] Sections =
+    [
+        ("## 1. Clarity of Deliverables",          "clarity of deliverables"),
+        ("## 2. Milestone and Acceptance Criteria", "milestone and acceptance criteria"),
+        ("## 3. Payment Terms",                     "payment terms"),
+        ("## 4. IP Ownership",                      "IP ownership"),
+        ("## 5. Scope Boundaries",                  "scope boundaries"),
+        ("## 6. Risk and Change Control",           "risk and change control"),
+    ];
+
+    private async Task<string> SynthesiseAsync(
         ChatClient client, List<string> summaries, CancellationToken ct)
     {
         var joined = string.Join("\n\n---\n\n",
             summaries.Select((s, i) => $"**Document {i + 1} analysis:**\n{s}"));
 
-        var prompt = $"""
-            You are an expert in Statements of Work (SoW) documents.
+        var sectionTexts = new List<string>(Sections.Length);
 
-            Below are quality analyses of {summaries.Count} known-good SoW document(s).
-            Synthesise these into a single authoritative "Definition of Good" for SoW documents.
+        foreach (var (heading, aspectName) in Sections)
+        {
+            logger.LogInformation("Synthesising section: {Section}", heading);
+            var prompt = $"""
+                You are an expert in Statements of Work (SoW) documents.
 
-            Write a markdown document with exactly these six sections:
+                Below are quality analyses of {summaries.Count} known-good SoW document(s).
+                Focus only on the aspect: **{aspectName}**.
 
-            ## 1. Clarity of Deliverables
-            ## 2. Milestone and Acceptance Criteria
-            ## 3. Payment Terms
-            ## 4. IP Ownership
-            ## 5. Scope Boundaries
-            ## 6. Risk and Change Control
+                Write the content for this single section of an authoritative "Definition of Good" for SoW documents:
 
-            For each section describe the standards and best practices that characterise a high-quality SoW,
-            drawing on the patterns observed across all documents. Be specific and actionable.
+                {heading}
 
-            ---
-            {joined}
+                Describe the standards and best practices that characterise a high-quality SoW for this aspect,
+                drawing on the patterns observed across all documents. Be specific and actionable.
+                Output only the section heading and body — no preamble, no other sections.
+
+                ---
+                {joined}
+                """;
+
+            var opts = new ChatCompletionOptions { MaxOutputTokenCount = 2048 };
+            var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
+            sectionTexts.Add(result.Value.Content[0].Text.Trim());
+        }
+
+        var intro = $"""
+            # Definition of Good for Statement of Work Documents
+
+            The following sections outline the standards and best practices for high-quality Statement of Work (SoW) documents, synthesised from analyses of {summaries.Count} known-good document(s).
+
             """;
 
-        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], cancellationToken: ct);
-        return result.Value.Content[0].Text;
+        return intro + string.Join("\n\n", sectionTexts);
     }
 }
