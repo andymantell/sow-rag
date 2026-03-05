@@ -16,6 +16,12 @@ public class GoodDefinition
     private volatile bool _isReady;
     private volatile string _progressMessage = "";
 
+    /// <summary>
+    /// Raised on the background thread whenever progress changes or the definition becomes ready.
+    /// Subscribers must marshal to their own synchronisation context (e.g. <c>InvokeAsync</c>).
+    /// </summary>
+    public event Action? OnChanged;
+
     /// <summary>Canonical sections discovered from the corpus, each with its definition content.</summary>
     public IReadOnlyList<DefinedSection> Sections { get; private set; } = [];
 
@@ -28,8 +34,12 @@ public class GoodDefinition
     /// <summary>Whether the definition has been fully generated and is safe to read.</summary>
     public bool IsReady => _isReady;
 
-    /// <summary>Updates the progress message. Safe to call at any point before SetReady.</summary>
-    public void SetProgress(string message) => _progressMessage = message;
+    /// <summary>Updates the progress message and notifies subscribers.</summary>
+    public void SetProgress(string message)
+    {
+        _progressMessage = message;
+        OnChanged?.Invoke();
+    }
 
     /// <summary>Number of source documents analysed.</summary>
     public int DocumentCount { get; private set; }
@@ -56,5 +66,6 @@ public class GoodDefinition
         DocumentCount = documentCount;
         ChunkCount = chunkCount;
         _isReady = true;
+        OnChanged?.Invoke();
     }
 }

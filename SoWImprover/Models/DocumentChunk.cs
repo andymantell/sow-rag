@@ -1,6 +1,6 @@
 namespace SoWImprover.Models;
 
-/// <summary>A fixed-size text chunk from a corpus document, used for TF-IDF retrieval.</summary>
+/// <summary>A fixed-size text chunk from a corpus document, used for semantic embedding retrieval.</summary>
 public class DocumentChunk
 {
     /// <summary>Filename of the source PDF (basename only, no path).</summary>

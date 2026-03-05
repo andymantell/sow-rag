@@ -89,8 +89,7 @@ Drop 2–10 representative SoW PDFs into the `SoWImprover/sample-sows/` folder. 
     "KnownGoodFolder": "./sample-sows",
     "ChunkSize": 500,
     "ChunkOverlap": 50,
-    "TopKChunks": 5,
-    "MatchThreshold": 0.6
+    "TopKChunks": 5
   }
 }
 ```
@@ -155,7 +154,7 @@ export Foundry__CloudApiKey="your-key"
 - **PDF extraction:** Python subprocess using `pymupdf4llm` — produces clean markdown from PDFs
 - **Embeddings:** nomic-embed-text via Ollama (local) or Azure OpenAI (cloud) — cached to disk on first run
 - **Retrieval:** Semantic similarity (cosine) over nomic-embed-text vectors; top-k chunks per section
-- **Section matching:** Uploaded section titles matched to 11 canonical SoW sections by embedding similarity
+- **Section matching:** Uploaded section titles matched to 15 canonical SoW sections by embedding similarity
 - **LLM inference:** Microsoft Foundry Local (local) or Azure AI Foundry (cloud); one call per section sequentially
 - **Definition of good:** Generated once at startup from the corpus; covers deliverables, milestones/acceptance criteria, payment terms, IP ownership, scope boundaries, risk/change control
 - **No database or vector store** — all state is in-memory; restart clears it (embedding cache persists on disk)

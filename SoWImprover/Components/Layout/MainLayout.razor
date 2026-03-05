@@ -57,47 +57,36 @@
             </div>
         </div>
 
-        <div class="govuk-footer__meta-custom app-status-bar__info">
+        <div class="govuk-footer__meta-custom app-status-bar__info" aria-live="polite">
             <span>@_modelLabel</span>
             <span class="app-status-bar__sep" aria-hidden="true">·</span>
-
             @if (Definition.IsReady)
             {
                 <span style="color:#00703c">Ready · @Definition.DocumentCount doc(s) · @Definition.ChunkCount chunks</span>
             }
-        </div>        
+        </div>
     </div>
 </footer>
 
 @code {
     private string _modelLabel = "";
-    private readonly CancellationTokenSource _cts = new();
 
-    protected override Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         _modelLabel = Config.GetValue<bool>("Foundry:UseLocal")
             ? $"Local · {Config["Foundry:LocalModelName"]}"
             : $"Cloud · {Config["Foundry:CloudModelName"]}";
 
         if (!Definition.IsReady)
-            _ = PollUntilReadyAsync(_cts.Token);
-        return Task.CompletedTask;
+            Definition.OnChanged += OnDefinitionChanged;
     }
 
-    private async Task PollUntilReadyAsync(CancellationToken ct)
+    private void OnDefinitionChanged()
     {
-        try
-        {
-            while (!Definition.IsReady && !ct.IsCancellationRequested)
-                await Task.Delay(2000, ct);
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (OperationCanceledException) { }
+        if (Definition.IsReady)
+            Definition.OnChanged -= OnDefinitionChanged;
+        _ = InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        _cts.Cancel();
-        _cts.Dispose();
-    }
+    public void Dispose() => Definition.OnChanged -= OnDefinitionChanged;
 }

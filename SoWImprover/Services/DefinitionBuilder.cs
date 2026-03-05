@@ -125,12 +125,20 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
         return StripCodeFences(result.Value.Content[0].Text);
     }
 
+    /// <summary>
+    /// Strips a wrapping markdown code fence (``` ... ```) from LLM output.
+    /// Only removes the opening and closing fence lines, not fences inside the content.
+    /// </summary>
     private static string StripCodeFences(string text)
     {
         text = text.Trim();
-        if (!text.StartsWith("```"))
-            return text;
-        text = Regex.Replace(text, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
-        return text.TrimEnd('`', '\n', ' ');
+        if (!text.StartsWith("```")) return text;
+        var firstNewline = text.IndexOf('\n');
+        if (firstNewline < 0) return text;
+        text = text[(firstNewline + 1)..].TrimEnd();
+        var lastNewline = text.LastIndexOf('\n');
+        if (lastNewline >= 0 && text[(lastNewline + 1)..].TrimEnd('`', ' ').Length == 0)
+            text = text[..lastNewline];
+        return text.Trim();
     }
 }

@@ -122,13 +122,7 @@ public class SoWImproverService(
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 
-        var json = completion.Value.Content[0].Text.Trim();
-        // Strip markdown code fence if present
-        if (json.StartsWith("```"))
-        {
-            json = Regex.Replace(json, @"^```[a-z]*\n?", "", RegexOptions.Multiline)
-                        .TrimEnd('`', '\n', ' ');
-        }
+        var json = StripCodeFence(completion.Value.Content[0].Text.Trim());
 
         try
         {
@@ -196,14 +190,9 @@ public class SoWImproverService(
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
 
-        var improved = completion.Value.Content[0].Text.Trim();
-        if (improved.StartsWith("```"))
-        {
-            improved = Regex.Replace(improved, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
-            improved = improved.TrimEnd('`', '\n', ' ');
-        }
-        // Strip any heading the model may have hallucinated
-        improved = Regex.Replace(improved, @"^#{1,2}[^\n]*\n+", "", RegexOptions.Multiline).TrimStart();
+        var improved = StripCodeFence(completion.Value.Content[0].Text.Trim());
+        // Strip a leading heading the model may have hallucinated — \A anchors to string start only
+        improved = Regex.Replace(improved, @"\A#{1,2}[^\n]*\n+", "").TrimStart();
         return improved;
     }
 
@@ -268,6 +257,22 @@ public class SoWImproverService(
         if (line.StartsWith('#')) return true;
         var t = line.Trim();
         return t.Length > 2 && t.Any(char.IsLetter) && t == t.ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Strips a wrapping markdown code fence (``` ... ```) from LLM output.
+    /// Only removes the opening and closing fence lines, not fences inside the content.
+    /// </summary>
+    private static string StripCodeFence(string text)
+    {
+        if (!text.StartsWith("```")) return text;
+        var firstNewline = text.IndexOf('\n');
+        if (firstNewline < 0) return text;
+        text = text[(firstNewline + 1)..].TrimEnd();
+        var lastNewline = text.LastIndexOf('\n');
+        if (lastNewline >= 0 && text[(lastNewline + 1)..].TrimEnd('`', ' ').Length == 0)
+            text = text[..lastNewline];
+        return text.Trim();
     }
 }
 

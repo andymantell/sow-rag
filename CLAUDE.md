@@ -15,14 +15,18 @@ See README for architecture overview, prerequisites, and configuration.
 Services/
   DefinitionGeneratorService.cs  # BackgroundService — startup orchestrator
   FoundryClientFactory.cs        # Chat + embedding clients (local/cloud)
-  EmbeddingService.cs            # Wraps EmbeddingClient; sequential calls only
+  EmbeddingService.cs            # Wraps EmbeddingClient; sequential calls only (no client cache)
   EmbeddingRetriever.cs          # Cosine similarity retrieval + section matching
   DefinitionBuilder.cs           # 2-pass LLM: per-doc analysis → per-section synthesis
   SoWImproverService.cs          # Per-section RAG improvement pipeline
   DocumentLoader.cs              # Python subprocess PDF extraction + chunking
+  ResultState.cs                 # Scoped (per-circuit): holds ImprovementResult between pages
 Models/
-  GoodDefinition.cs              # Singleton: sections, EmbeddingRetriever, volatile IsReady
-Components/Pages/Home.razor      # Main layout
+  GoodDefinition.cs              # Singleton: sections, EmbeddingRetriever, volatile IsReady,
+                                 # OnChanged event (fired by SetProgress + SetReady)
+Components/Pages/Home.razor      # Upload page (clears ResultState on init)
+Components/Pages/Results.razor   # Diff results page (prerender: false — avoids SSR scope issue)
+Components/Layout/MainLayout.razor  # GOV.UK layout; subscribes to GoodDefinition.OnChanged
 Components/Shared/               # DefinitionSidebar, UploadPanel, ResultsPanel
 sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
 ```
@@ -47,7 +51,7 @@ sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
 
 **Chunking:** `text.Split([' ', '\n', '\r', '\t'], ...)` — must split on all whitespace. Splitting on space only causes markdown table rows to become single oversized tokens that exceed Ollama's context limit. `EmbedAsync` also truncates at 8000 chars as a safety net.
 
-**Canonical sections:** Defined in both `DefinitionBuilder.CanonicalSections` and `DefinitionGeneratorService.CanonicalSections` — must be kept in sync (11 sections).
+**Canonical sections:** Defined in both `DefinitionBuilder.CanonicalSections` and `DefinitionGeneratorService.CanonicalSections` — must be kept in sync (15 sections).
 
 **GoodDefinition threading:** `IsReady` is `volatile bool` — acts as release fence. `Retriever` and `Sections` are safe to read after `IsReady == true`.
 
@@ -56,8 +60,12 @@ sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
 **`RuntimeIdentifier = win-x64`** set in `.csproj` — app targets Windows only (Foundry Local CLI is Windows-only). `Microsoft.AI.Foundry.Local` and `UglyToad.PdfPig` NuGets have been removed (unused).
 
 ## Current Task
-Embedding-based RAG implementation complete. Smoke test in progress — last run had chunker whitespace-split fix applied. To continue:
-1. `del SoWImprover\sample-sows\embeddings-cache.json`
-2. `cd SoWImprover && dotnet run`
-3. Verify startup completes (embeddings computed, definition generated, app ready)
-4. Test `/api/improve` with a real SoW upload via the browser UI
+App is working end-to-end. Two rounds of code review applied. All safe fixes implemented including:
+- XSS: Markdig `.DisableHtml()` on all markdown pipelines
+- Accessibility: `aria-live`, `aria-labelledby`, `aria-hidden` on relevant elements
+- Security: server-side file type validation, exception messages not exposed to UI
+- Blazor: `NavigationException` re-thrown, Results page uses `prerender: false`
+- Architecture: polling replaced with `GoodDefinition.OnChanged` event subscription
+- Correctness: `StripCodeFences` and heading-strip regex fixed (`\A` anchor, no Multiline)
+- `EmbeddingService` no longer caches client (factory handles caching)
+- `DiffService` deleted (dead code)

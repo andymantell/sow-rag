@@ -23,30 +23,19 @@ else
 @code {
     private MarkupString _definitionHtml;
     private bool _definitionHtmlComputed;
-    private readonly CancellationTokenSource _cts = new();
 
-    protected override Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        if (!Definition.IsReady)
-            _ = PollUntilReadyAsync(_cts.Token);
-        else
+        Definition.OnChanged += OnDefinitionChanged;
+        if (Definition.IsReady)
             RenderDefinition();
-        return Task.CompletedTask;
     }
 
-    private async Task PollUntilReadyAsync(CancellationToken ct)
+    private void OnDefinitionChanged()
     {
-        try
-        {
-            while (!Definition.IsReady && !ct.IsCancellationRequested)
-            {
-                await Task.Delay(2000, ct);
-                await InvokeAsync(StateHasChanged);
-            }
+        if (Definition.IsReady)
             RenderDefinition();
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (OperationCanceledException) { }
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void RenderDefinition()
@@ -58,9 +47,5 @@ else
         }
     }
 
-    public void Dispose()
-    {
-        _cts.Cancel();
-        _cts.Dispose();
-    }
+    public void Dispose() => Definition.OnChanged -= OnDefinitionChanged;
 }

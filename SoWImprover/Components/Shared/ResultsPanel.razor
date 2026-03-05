@@ -14,13 +14,14 @@
             </div>
 
             @* One row per section *@
-            @foreach (var (sec, sectionIndex) in Result.Sections.Select((s, i) => (s, i)))
+            @foreach (var (rendered, sectionIndex) in _rendered.Select((r, i) => (r, i)))
             {
+                var sec = Result.Sections[sectionIndex];
                 <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "")">
                     @* Left: original *@
                     <div class="diff-col">
                         <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                        @MarkdownRenderer.ToMarkupString(sec.OriginalContent)
+                        @rendered.OriginalHtml
                     </div>
 
                     @* Right: improved or unrecognised notice *@
@@ -31,7 +32,8 @@
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
                             <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
                                  role="region"
-                                 aria-labelledby="@unrecognisedId">
+                                 aria-labelledby="@unrecognisedId"
+                                 data-module="govuk-notification-banner">
                                 <div class="govuk-notification-banner__header">
                                     <h2 class="govuk-notification-banner__title" id="@unrecognisedId">Section not recognised</h2>
                                 </div>
@@ -39,19 +41,13 @@
                                     <p class="govuk-body">This section could not be matched to the definition of good - no improvements have been made.</p>
                                 </div>
                             </div>
-                            @MarkdownRenderer.ToMarkupString(sec.OriginalContent)
+                            @rendered.OriginalHtml
                         }
                         else
                         {
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                            @if (!string.IsNullOrWhiteSpace(sec.Explanation))
+                            @if (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue)
                             {
-                                var bullets = sec.Explanation
-                                    .Split('\n')
-                                    .Select(l => l.Trim())
-                                    .Where(l => l.StartsWith("-"))
-                                    .Select(l => l[1..].Trim())
-                                    .ToList();
                                 var bannerId = $"nb-{sectionIndex}";
                                 <div class="govuk-notification-banner app-explanation-banner"
                                      role="region"
@@ -63,23 +59,23 @@
                                         </h2>
                                     </div>
                                     <div class="govuk-notification-banner__content">
-                                        @if (bullets.Count > 0)
+                                        @if (rendered.BulletHtml.Count > 0)
                                         {
                                             <ul class="govuk-list govuk-list--bullet">
-                                                @foreach (var b in bullets)
+                                                @foreach (var bullet in rendered.BulletHtml)
                                                 {
-                                                    <li>@MarkdownRenderer.ToInlineMarkupString(b)</li>
+                                                    <li>@bullet</li>
                                                 }
                                             </ul>
                                         }
-                                        else
+                                        else if (rendered.ExplanationHtml.HasValue)
                                         {
-                                            <p class="govuk-body">@MarkdownRenderer.ToInlineMarkupString(sec.Explanation)</p>
+                                            <p class="govuk-body">@rendered.ExplanationHtml.Value</p>
                                         }
                                     </div>
                                 </div>
                             }
-                            @MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? "")
+                            @rendered.ImprovedHtml
                         }
                     </div>
                 </div>
@@ -91,4 +87,39 @@
 
 @code {
     [Parameter] public ImprovementResult? Result { get; set; }
+
+    private record RenderedSection(
+        MarkupString OriginalHtml,
+        MarkupString ImprovedHtml,
+        List<MarkupString> BulletHtml,
+        MarkupString? ExplanationHtml);
+
+    private ImprovementResult? _lastResult;
+    private List<RenderedSection> _rendered = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Result == _lastResult) return;
+        _lastResult = Result;
+
+        _rendered = Result?.Sections.Select(sec =>
+        {
+            var bullets = (sec.Explanation ?? "")
+                .Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => l.StartsWith("-"))
+                .Select(l => MarkdownRenderer.ToInlineMarkupString(l[1..].Trim()))
+                .ToList();
+
+            MarkupString? explanationHtml = bullets.Count == 0 && !string.IsNullOrWhiteSpace(sec.Explanation)
+                ? MarkdownRenderer.ToInlineMarkupString(sec.Explanation)
+                : null;
+
+            return new RenderedSection(
+                MarkdownRenderer.ToMarkupString(sec.OriginalContent),
+                MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? ""),
+                bullets,
+                explanationHtml);
+        }).ToList() ?? [];
+    }
 }

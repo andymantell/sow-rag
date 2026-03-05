@@ -7,14 +7,6 @@ namespace SoWImprover.Services;
 /// </summary>
 public class EmbeddingService(FoundryClientFactory factory)
 {
-    private EmbeddingClient? _client;
-
-    private async Task<EmbeddingClient> GetClientAsync(CancellationToken ct)
-    {
-        _client ??= await factory.GetEmbeddingClientAsync(ct);
-        return _client;
-    }
-
     // nomic-embed-text context limit is 8192 tokens (~32K chars). Truncate conservatively
     // so chunks containing long markdown table rows or other non-prose content never exceed it.
     private const int MaxEmbedChars = 8000;
@@ -24,7 +16,7 @@ public class EmbeddingService(FoundryClientFactory factory)
     {
         if (text.Length > MaxEmbedChars)
             text = text[..MaxEmbedChars];
-        var client = await GetClientAsync(ct);
+        var client = await factory.GetEmbeddingClientAsync(ct);
         var result = await client.GenerateEmbeddingAsync(text, cancellationToken: ct);
         return result.Value.ToFloats().ToArray();
     }
