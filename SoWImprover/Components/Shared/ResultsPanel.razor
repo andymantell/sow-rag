@@ -2,33 +2,10 @@
 
     @if (Result is null)
     {
-        <div class="diff-placeholder">
-            <p class="govuk-body-l">Upload a SoW PDF and click <strong>Improve document</strong> to see results.</p>
-        </div>
+        <div class="diff-placeholder"></div>
     }
     else
     {
-        @* Sources collapsible *@
-        @if (Result.ChunksUsed.Count > 0)
-        {
-            <div class="app-sources">
-                <details class="govuk-details">
-                    <summary class="govuk-details__summary">
-                        <span class="govuk-details__summary-text">Sources used from corpus</span>
-                    </summary>
-                    <div class="govuk-details__text">
-                        @foreach (var chunk in Result.ChunksUsed)
-                        {
-                            <div class="source-item">
-                                <strong>@chunk.SourceFile</strong><br />
-                                @chunk.Snippet
-                            </div>
-                        }
-                    </div>
-                </details>
-            </div>
-        }
-
         @* Column headers *@
         <div class="diff-panels">
             <div class="diff-header-row">

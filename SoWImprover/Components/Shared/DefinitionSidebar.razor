@@ -1,39 +1,29 @@
 @inject GoodDefinition Definition
 
-<div class="app-sidebar @(_collapsed ? "collapsed" : "")">
-    <div class="app-sidebar__header">
-        <span class="app-sidebar__title">Definition of Good</span>
-        <button class="app-sidebar__toggle"
-                type="button"
-                title="@(_collapsed ? "Expand panel" : "Collapse panel")"
-                @onclick="ToggleCollapsed">
-            @(_collapsed ? "▶" : "◀")
-        </button>
-    </div>
-    <div class="app-sidebar__body">
-        @if (!IsDefinitionReady)
-        {
-            <div class="app-loading">
-                <div class="app-loading__ring"></div>
-                <p class="app-loading__text">Generating definition of good…</p>
+<div class="app-definition-bar">
+    @if (!IsDefinitionReady)
+    {
+        <div class="app-definition-loading">
+            <div class="app-spinner" aria-hidden="true"></div>
+            <span class="govuk-body-s">Generating definition of good...</span>
+        </div>
+    }
+    else
+    {
+        <details class="govuk-details">
+            <summary class="govuk-details__summary">
+                <span class="govuk-details__summary-text">Definition of good</span>
+            </summary>
+            <div class="govuk-details__text">
+                @_definitionHtml
             </div>
-        }
-        else
-        {
-            @_definitionHtml
-        }
-    </div>
+        </details>
+    }
 </div>
 
 @code {
-    /// <summary>
-    /// Passed from Home so Blazor detects the false→true change and calls OnParametersSet,
-    /// which triggers the one-time markdown render. Without an explicit parameter, Blazor has
-    /// nothing to diff on this component and may skip the lifecycle call.
-    /// </summary>
     [Parameter] public bool IsDefinitionReady { get; set; }
 
-    private bool _collapsed;
     private MarkupString _definitionHtml;
     private bool _definitionHtmlComputed;
 
@@ -45,6 +35,4 @@
             _definitionHtmlComputed = true;
         }
     }
-
-    private void ToggleCollapsed() => _collapsed = !_collapsed;
 }

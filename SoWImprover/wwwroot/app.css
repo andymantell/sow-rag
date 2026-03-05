@@ -10,23 +10,24 @@ html.govuk-template,
   margin: 0;
 }
 
-/* Remove max-width constraint from header so it spans full viewport */
-.govuk-header .govuk-width-container {
-  max-width: none;
-  margin: 0;
-  padding-left: 15px;
-  padding-right: 15px;
+/* All govuk-width-containers capped at 2000px and centred.
+   GOV.UK Frontend provides the native 15px gutter padding.  */
+.govuk-width-container {
+  max-width: 2000px;
+  margin: 0 auto;
 }
 
-/* ── Status bar ─────────────────────────────────────────────── */
-.app-status-bar {
-  background: #f3f2f1;
-  border-bottom: 1px solid #b1b4b6;
-  padding: 4px 15px;
+/* Footer: shrink to content, never scroll */
+.govuk-footer {
+  flex-shrink: 0;
+}
+
+/* ── Phase banner: status info on the right ──────────────── */
+.app-phase-banner__inner {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  flex-shrink: 0;
+  justify-content: space-between;
+  gap: 20px;
 }
 .app-status-bar__info {
   display: flex;
@@ -35,116 +36,66 @@ html.govuk-template,
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 13px;
   color: #505a5f;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .app-status-bar__sep { color: #b1b4b6; }
 
-/* ── Content layout: sidebar + main ──────────────────────── */
-.app-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* ── Definition sidebar ───────────────────────────────────── */
-.app-sidebar {
-  width: 420px;
-  min-width: 36px;
+/* ── Intro paragraph ─────────────────────────────────────── */
+.app-intro {
+  flex-shrink: 0;
   background: #ffffff;
-  border-right: 1px solid #b1b4b6;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex-shrink: 0;
-  transition: width 0.2s ease;
+  border-bottom: 1px solid #b1b4b6;
+  padding-top: 15px;
+  padding-bottom: 15px;
 }
-.app-sidebar.collapsed { width: 36px; }
-.app-sidebar.collapsed .app-sidebar__body { display: none; }
+.app-intro .govuk-body {
+  margin-bottom: 0;
+}
 
-.app-sidebar__header {
-  padding: 10px 12px 10px 15px;
-  background: #505a5f;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ── Definition of good (collapsible at top) ─────────────── */
+.app-definition-bar {
   flex-shrink: 0;
-  gap: 8px;
-  white-space: nowrap;
-  min-height: 38px;
-}
-.app-sidebar.collapsed .app-sidebar__header {
-  flex: 1;
-  flex-direction: column-reverse;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 10px 0 12px;
-  gap: 10px;
-}
-.app-sidebar__title {
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffffff;
-}
-.app-sidebar.collapsed .app-sidebar__title {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  letter-spacing: 0.04em;
-  flex: 1;
-  text-align: center;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.app-sidebar__toggle {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.5);
-  color: #ffffff;
-  cursor: pointer;
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 11px;
-  padding: 3px 6px;
-  flex-shrink: 0;
-  transition: border-color 0.1s;
-}
-.app-sidebar__toggle:hover { border-color: #ffffff; }
-.app-sidebar__toggle:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
-
-.app-sidebar__body {
-  flex: 1;
+  background: #ffffff;
+  border-bottom: 1px solid #b1b4b6;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  max-height: 320px;
   overflow-y: auto;
-  padding: 15px 18px 20px 15px;
 }
-
-/*
- * Sidebar typography scale overrides.
- * GOV.UK heading sizes are optimised for full-width pages (h1 = 48px).
- * The sidebar is 420px wide so we scale everything down proportionally,
- * keeping the same visual hierarchy but at a size that fits the pane.
- */
-.app-sidebar__body .govuk-heading-xl,
-.app-sidebar__body .govuk-heading-l  { font-size: 1.1875rem; line-height: 1.31579; margin-bottom: 15px; }
-.app-sidebar__body .govuk-heading-m  { font-size: 0.9375rem; line-height: 1.4;     margin-bottom: 10px; }
-.app-sidebar__body .govuk-heading-s  { font-size: 0.875rem;  line-height: 1.42857; margin-bottom: 8px;  }
-.app-sidebar__body .govuk-body       { font-size: 0.875rem;  line-height: 1.5;     margin-bottom: 10px; }
-.app-sidebar__body .govuk-list       { font-size: 0.875rem;  line-height: 1.5;     margin-bottom: 10px; }
-.app-sidebar__body .govuk-table__header,
-.app-sidebar__body .govuk-table__cell { font-size: 0.875rem; padding: 6px 12px 6px 0; }
+.app-definition-bar .govuk-details {
+  margin-bottom: 0;
+}
+.app-definition-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
 
 /* ── Main content area ────────────────────────────────────── */
 .app-main {
   flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.govuk-main-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  background: #f3f2f1;
+  padding: 0;
 }
 
 /* ── Toolbar (upload) ─────────────────────────────────────── */
 .app-toolbar {
   background: #ffffff;
   border-bottom: 1px solid #b1b4b6;
-  padding: 12px 20px;
+  padding-top: 12px;
+  padding-bottom: 12px;
   flex-shrink: 0;
 }
 .app-toolbar__row {
@@ -198,34 +149,8 @@ html.govuk-template,
   overflow: hidden;
   min-height: 0;
 }
-.diff-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: #f3f2f1;
-}
-.diff-placeholder .govuk-body-l { color: #505a5f; }
+.diff-placeholder { flex: 1; }
 
-/* ── Sources (govuk-details) ──────────────────────────────── */
-.app-sources {
-  flex-shrink: 0;
-  background: #ffffff;
-  border-top: 1px solid #b1b4b6;
-  padding: 8px 20px;
-}
-.app-sources .govuk-details { margin: 0; }
-.source-item {
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 14px;
-  color: #0b0c0c;
-  padding: 6px 0;
-  border-bottom: 1px solid #f3f2f1;
-}
-.source-item:last-child { border-bottom: none; }
-.source-item strong { color: #1d70b8; }
 
 /* ── Loading spinner for definition ──────────────────────── */
 .app-loading {
@@ -265,7 +190,7 @@ html.govuk-template,
   flex-shrink: 0;
 }
 .diff-col-header {
-  padding: 8px 20px;
+  padding: 8px 15px;
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -284,7 +209,7 @@ html.govuk-template,
 .diff-col {
   background: #ffffff;
   overflow-y: auto;
-  padding: 25px 30px;
+  padding: 25px 15px;
 }
 .diff-col + .diff-col { border-left: 1px solid #b1b4b6; }
 
