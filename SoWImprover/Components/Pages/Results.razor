@@ -1,0 +1,22 @@
+@page "/results"
+@rendermode InteractiveServer
+@inject ResultState ResultState
+@inject NavigationManager Nav
+
+@if (ResultState.Current is not null)
+{
+    <div class="govuk-width-container">
+        <main class="govuk-main-wrapper" id="main-content">
+            <a href="/" class="govuk-back-link">Back</a>
+            <ResultsPanel Result="ResultState.Current" />
+        </main>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (ResultState.Current is null)
+            Nav.NavigateTo("/", replace: true);
+    }
+}

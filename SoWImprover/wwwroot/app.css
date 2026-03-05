@@ -20,13 +20,7 @@
   }
 }
 
-/* ── Phase banner: status info on the right ──────────────── */
-.app-phase-banner__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
+/* ── Footer: status info ──────────────────────────────────── */
 .app-status-bar__info {
   display: flex;
   align-items: center;
@@ -34,8 +28,7 @@
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 13px;
   color: #505a5f;
-  white-space: nowrap;
-  flex-shrink: 0;
+  margin-top: 10px;
 }
 .app-status-bar__sep { color: #b1b4b6; }
 
@@ -58,12 +51,6 @@
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.app-progress-message {
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 13px;
-  color: #505a5f;
-  font-style: italic;
-}
 
 /* ── Section-per-row diff layout ─────────────────────────── */
 .diff-panels {

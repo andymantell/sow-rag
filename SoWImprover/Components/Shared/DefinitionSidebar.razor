@@ -1,10 +1,11 @@
 @inject GoodDefinition Definition
+@implements IDisposable
 
-@if (!IsDefinitionReady)
+@if (!Definition.IsReady)
 {
     <div class="app-definition-loading">
         <div class="app-spinner" aria-hidden="true"></div>
-        <span class="govuk-body-s">Generating definition of good...</span>
+        <span class="govuk-body-s">@(string.IsNullOrEmpty(Definition.ProgressMessage) ? "Starting..." : Definition.ProgressMessage)</span>
     </div>
 }
 else
@@ -20,17 +21,46 @@ else
 }
 
 @code {
-    [Parameter] public bool IsDefinitionReady { get; set; }
-
     private MarkupString _definitionHtml;
     private bool _definitionHtmlComputed;
+    private readonly CancellationTokenSource _cts = new();
 
-    protected override void OnParametersSet()
+    protected override Task OnInitializedAsync()
     {
-        if (IsDefinitionReady && !_definitionHtmlComputed)
+        if (!Definition.IsReady)
+            _ = PollUntilReadyAsync(_cts.Token);
+        else
+            RenderDefinition();
+        return Task.CompletedTask;
+    }
+
+    private async Task PollUntilReadyAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!Definition.IsReady && !ct.IsCancellationRequested)
+            {
+                await Task.Delay(2000, ct);
+                await InvokeAsync(StateHasChanged);
+            }
+            RenderDefinition();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void RenderDefinition()
+    {
+        if (!_definitionHtmlComputed)
         {
             _definitionHtml = MarkdownRenderer.ToMarkupString(Definition.MarkdownContent);
             _definitionHtmlComputed = true;
         }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
     }
 }

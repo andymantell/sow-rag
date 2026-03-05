@@ -4,6 +4,9 @@ using SoWImprover.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Scoped (per Blazor circuit / user session) ───────────────────────────────
+builder.Services.AddScoped<ResultState>();
+
 // ── Singletons ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GoodDefinition>();
 builder.Services.AddSingleton<DocumentLoader>();

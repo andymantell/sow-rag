@@ -58,11 +58,10 @@
 
 @if (_isImproving)
 {
-    <div class="app-spinner"></div>
-    @if (!string.IsNullOrEmpty(_progressMessage))
-    {
-        <span class="app-progress-message">@_progressMessage</span>
-    }
+    <div class="app-definition-loading">
+        <div class="app-spinner" aria-hidden="true"></div>
+        <span class="govuk-body-s">@(string.IsNullOrEmpty(_progressMessage) ? "Improving document..." : _progressMessage)</span>
+    </div>
 }
 
 </form>
@@ -116,6 +115,7 @@
         StateHasChanged();
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"sow_{Guid.NewGuid():N}.pdf");
+        ImprovementResult? result = null;
         try
         {
             using (var fs = File.Create(tempPath))
@@ -135,8 +135,7 @@
                 _progressMessage = msg;
                 InvokeAsync(StateHasChanged);
             });
-            var result = await Improver.ImproveAsync(originalText, Definition, progress);
-            await OnImproved.InvokeAsync(result);
+            result = await Improver.ImproveAsync(originalText, Definition, progress);
         }
         catch (Exception ex)
         {
@@ -149,5 +148,8 @@
             _progressMessage = "";
             StateHasChanged();
         }
+
+        if (result is not null)
+            await OnImproved.InvokeAsync(result);
     }
 }

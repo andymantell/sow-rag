@@ -27,12 +27,13 @@ public class DefinitionGeneratorService(
 
         logger.LogInformation("Loaded {Docs} document(s), {Chunks} chunks",
             documents.Count, chunks.Count);
+        definition.SetProgress($"Loaded {documents.Count} document(s), {chunks.Count} chunks — preparing embeddings…");
 
         // Compute or load cached chunk embeddings
-        definition.SetProgress("Computing embeddings…");
-        var vectors = await GetOrComputeChunkVectorsAsync(chunks, folder, ct);
+        var vectors = await GetOrComputeChunkVectorsAsync(chunks, folder, definition.SetProgress, ct);
 
         logger.LogInformation("Generating definition from {Count} document(s)", documents.Count);
+        definition.SetProgress($"Starting analysis of {documents.Count} document(s)…");
         var sections = await builder.BuildDefinitionAsync(documents, definition.SetProgress, ct);
 
         var retriever = new EmbeddingRetriever(chunks, vectors, embeddingService, topK);
@@ -50,6 +51,7 @@ public class DefinitionGeneratorService(
     private async Task<float[][]> GetOrComputeChunkVectorsAsync(
         List<DocumentChunk> chunks,
         string folder,
+        Action<string> progress,
         CancellationToken ct)
     {
         var modelName = config.GetValue<bool>("Foundry:UseLocal")
@@ -63,6 +65,7 @@ public class DefinitionGeneratorService(
         {
             try
             {
+                progress("Loading embeddings from cache…");
                 var cached = JsonSerializer.Deserialize<EmbeddingCacheFile>(
                     await File.ReadAllTextAsync(cacheFile, ct));
 
@@ -89,6 +92,7 @@ public class DefinitionGeneratorService(
         // Recompute
         logger.LogInformation(
             "Embedding {Count} chunks (this may take a moment)…", chunks.Count);
+        progress($"Computing embeddings for {chunks.Count} chunks (first run only — results will be cached)…");
         var texts = chunks.Select(c => c.Text).ToArray();
         var vectors = await embeddingService.EmbedBatchAsync(texts, ct);
 
