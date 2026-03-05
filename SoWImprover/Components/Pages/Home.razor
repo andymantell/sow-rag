@@ -2,13 +2,14 @@
 @rendermode InteractiveServer
 @inject GoodDefinition Definition
 
-<div class="govuk-width-container app-main">
+<div class="govuk-width-container">
     <main class="govuk-main-wrapper" id="main-content">
-        <div class="app-intro">
-            <p class="govuk-body">Upload a statement of work PDF to get an improved version. The tool matches each section of your document against a set of quality standards derived from known-good examples, then rewrites it to improve clarity, completeness and professional tone. Review the suggested changes side by side with your original.</p>
-        </div>
+        <p class="govuk-body">Upload a statement of work PDF to get an improved version. The tool matches each section of your document against a set of quality standards derived from known-good examples, then rewrites it to improve clarity, completeness and professional tone. Review the suggested changes side by side with your original.</p>
+        <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
         <DefinitionSidebar IsDefinitionReady="Definition.IsReady" />
+        <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
         <UploadPanel OnImproved="HandleImproved" />
+        <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
         <ResultsPanel Result="_result" />
     </main>
 </div>

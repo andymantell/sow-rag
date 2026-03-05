@@ -1,25 +1,23 @@
 @inject GoodDefinition Definition
 
-<div class="app-definition-bar">
-    @if (!IsDefinitionReady)
-    {
-        <div class="app-definition-loading">
-            <div class="app-spinner" aria-hidden="true"></div>
-            <span class="govuk-body-s">Generating definition of good...</span>
+@if (!IsDefinitionReady)
+{
+    <div class="app-definition-loading">
+        <div class="app-spinner" aria-hidden="true"></div>
+        <span class="govuk-body-s">Generating definition of good...</span>
+    </div>
+}
+else
+{
+    <details class="govuk-details">
+        <summary class="govuk-details__summary">
+            <span class="govuk-details__summary-text">Definition of good</span>
+        </summary>
+        <div class="govuk-details__text">
+            @_definitionHtml
         </div>
-    }
-    else
-    {
-        <details class="govuk-details">
-            <summary class="govuk-details__summary">
-                <span class="govuk-details__summary-text">Definition of good</span>
-            </summary>
-            <div class="govuk-details__text">
-                @_definitionHtml
-            </div>
-        </details>
-    }
-</div>
+    </details>
+}
 
 @code {
     [Parameter] public bool IsDefinitionReady { get; set; }

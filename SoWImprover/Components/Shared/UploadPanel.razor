@@ -2,65 +2,116 @@
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
 
-<!-- Upload toolbar -->
-<div class="app-toolbar">
-    <div class="app-toolbar__row">
-        <div class="app-toolbar__file">
-            <div class="govuk-form-group">
-                <label class="govuk-label" for="file-input">Upload SoW PDF</label>
-                <InputFile id="file-input"
-                           class="govuk-file-upload"
-                           accept="application/pdf"
-                           OnChange="HandleFileSelected" />
+<form @onsubmit="HandleImproveClicked" @onsubmit:preventDefault>
+
+@if (_errors.Count > 0)
+{
+    <div class="govuk-error-summary" data-module="govuk-error-summary">
+        <div role="alert">
+            <h2 class="govuk-error-summary__title">
+                There is a problem
+            </h2>
+            <div class="govuk-error-summary__body">
+                <ul class="govuk-list govuk-error-summary__list">
+                    @foreach (var (fieldId, message) in _errors)
+                    {
+                        <li>
+                            @if (fieldId is not null)
+                            {
+                                <a href="#@fieldId">@message</a>
+                            }
+                            else
+                            {
+                                @message
+                            }
+                        </li>
+                    }
+                </ul>
             </div>
         </div>
-        <div class="app-toolbar__actions">
-            <button class="govuk-button"
-                    type="button"
-                    disabled="@(!CanImprove)"
-                    @onclick="HandleImproveClicked">
-                Improve document
-            </button>
-            @if (_isImproving)
-            {
-                <div class="app-spinner"></div>
-                @if (!string.IsNullOrEmpty(_progressMessage))
-                {
-                    <span class="app-progress-message">@_progressMessage</span>
-                }
-            }
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <span class="app-upload-error">@_errorMessage</span>
-            }
-        </div>
     </div>
+}
+
+<div class="@_formGroupClass">
+    <label class="govuk-label" for="file-input">
+        Upload SoW PDF
+    </label>
+    @if (_fileError is not null)
+    {
+        <p id="file-input-error" class="govuk-error-message">
+            <span class="govuk-visually-hidden">Error:</span> @_fileError
+        </p>
+    }
+    <InputFile id="file-input"
+               name="file-input"
+               class="@_fileInputClass"
+               accept="application/pdf"
+               aria-describedby="@(_fileError is not null ? "file-input-error" : null)"
+               OnChange="HandleFileSelected" />
 </div>
 
+<button class="govuk-button"
+        data-module="govuk-button"
+        type="submit">
+    Improve document
+</button>
+
+@if (_isImproving)
+{
+    <div class="app-spinner"></div>
+    @if (!string.IsNullOrEmpty(_progressMessage))
+    {
+        <span class="app-progress-message">@_progressMessage</span>
+    }
+}
+
+</form>
+
 @code {
-    private const long MaxUploadBytes = 28 * 1024 * 1024; // matches ASP.NET Core default
+    private const long MaxUploadBytes = 28 * 1024 * 1024;
 
     [Parameter] public EventCallback<ImprovementResult> OnImproved { get; set; }
 
     private IBrowserFile? _selectedFile;
     private bool _isImproving;
-    private string _errorMessage = "";
     private string _progressMessage = "";
 
-    private bool CanImprove => Definition.IsReady && _selectedFile != null && !_isImproving;
+    // Each entry is (fieldId, message). fieldId is null for errors not tied to a field.
+    private List<(string? FieldId, string Message)> _errors = new();
+
+    private string? _fileError =>
+        _errors.Find(e => e.FieldId == "file-input") is { Message: var m } ? m : null;
+
+    private string _formGroupClass =>
+        _fileError is not null ? "govuk-form-group govuk-form-group--error" : "govuk-form-group";
+
+    private string _fileInputClass =>
+        _fileError is not null ? "govuk-file-upload govuk-file-upload--error" : "govuk-file-upload";
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
         _selectedFile = e.File;
-        _errorMessage = "";
+        _errors.RemoveAll(e => e.FieldId == "file-input");
+    }
+
+    private bool Validate()
+    {
+        _errors.Clear();
+
+        if (_selectedFile is null)
+            _errors.Add(("file-input", "Select a PDF to upload"));
+
+        if (!Definition.IsReady)
+            _errors.Add((null, "The service is still loading - please wait a moment before trying again"));
+
+        return _errors.Count == 0;
     }
 
     private async Task HandleImproveClicked()
     {
-        if (_selectedFile is null) return;
+        if (!Validate()) return;
 
         _isImproving = true;
-        _errorMessage = "";
         _progressMessage = "";
         StateHasChanged();
 
@@ -68,14 +119,14 @@
         try
         {
             using (var fs = File.Create(tempPath))
-            await using (var stream = _selectedFile.OpenReadStream(MaxUploadBytes))
+            await using (var stream = _selectedFile!.OpenReadStream(MaxUploadBytes))
                 await stream.CopyToAsync(fs);
 
             var originalText = (await DocumentLoader.ExtractTextAsync(tempPath)).Trim();
 
             if (string.IsNullOrWhiteSpace(originalText))
             {
-                _errorMessage = "No text could be extracted - PDF may be scanned or image-based.";
+                _errors.Add(("file-input", "No text could be extracted - the PDF may be scanned or image-based"));
                 return;
             }
 
@@ -89,7 +140,7 @@
         }
         catch (Exception ex)
         {
-            _errorMessage = $"Error: {ex.Message}";
+            _errors.Add((null, $"Something went wrong: {ex.Message}"));
         }
         finally
         {

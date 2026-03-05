@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#1d70b8" />
     <title>Improve a statement of work</title>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/govuk-frontend@6.1.0/dist/govuk/govuk-frontend.min.css" />
+    <link rel="stylesheet" href="govuk/govuk-frontend-6.1.0.min.css" />
     <link rel="stylesheet" href="app.css" />
 
     <HeadOutlet />
@@ -19,8 +19,10 @@
 
     <Routes />
 
-    <script src="https://cdn.jsdelivr.net/npm/govuk-frontend@6.1.0/dist/govuk/govuk-frontend.min.js"></script>
-    <script>window.GOVUKFrontend.initAll();</script>
+    <script type="module">
+        import { initAll } from '/govuk/govuk-frontend-6.1.0.min.js';
+        initAll();
+    </script>
     <script src="_framework/blazor.web.js"></script>
 
 </body>
