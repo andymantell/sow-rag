@@ -227,7 +227,7 @@ public class SoWImproverService(
                 if (currentBody.Any(l => !string.IsNullOrWhiteSpace(l)))
                     sections.Add(new DocumentSection(currentTitle, string.Join("\n", currentBody).Trim()));
 
-                currentTitle = line.TrimStart('#').Trim();
+                currentTitle = Regex.Replace(line.TrimStart('#').Trim(), @"\*{1,2}|_{1,2}", "").Trim();
                 currentBody.Clear();
             }
             else

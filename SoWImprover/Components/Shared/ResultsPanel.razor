@@ -50,10 +50,12 @@
                     <div class="diff-col">
                         @if (sec.Unrecognised)
                         {
+                            <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
                             <div class="diff-unrecognised-notice">
                                 <span class="diff-unrecognised-icon" aria-hidden="true">&#9888;</span>
                                 Section not recognised — no improvements made.
                             </div>
+                            @MarkdownRenderer.ToMarkupString(sec.OriginalContent)
                         }
                         else
                         {
