@@ -75,6 +75,8 @@ public class SoWImproverService(
         string definition,
         CancellationToken ct)
     {
+        // Remove the H1 title line so it doesn't bleed into the improved output
+        definition = Regex.Replace(definition, @"^#(?!#)[^\n]*\n+", "", RegexOptions.Multiline).TrimStart();
         if (definition.Length > MaxDefinitionChars)
             definition = definition[..MaxDefinitionChars] + "\n[definition truncated]";
 
@@ -83,21 +85,28 @@ public class SoWImproverService(
             : "No relevant examples found.";
 
         var prompt = $$"""
-            You are an expert in Statements of Work (SoW) documents.
+            You are an expert editor rewriting a Statement of Work (SoW) document.
 
-            DEFINITION OF GOOD:
+            Your task is to rewrite the section below so that it reads as polished, professional SoW content.
+            The output must be the rewritten section itself — actual contract/SoW language, not commentary,
+            not a description of improvements, not guidance on how a good SoW should be written.
+            Do not describe what the section should contain. Write the content directly.
+
+            Use the QUALITY STANDARDS below as editorial guidance only. Do not reproduce them in the output.
+
+            QUALITY STANDARDS (editorial reference — do not include in output):
             {{definition}}
 
-            RELEVANT EXAMPLES FROM KNOWN-GOOD SoWs:
+            RELEVANT EXAMPLES FROM KNOWN-GOOD SoWs (editorial reference — do not include in output):
             {{context}}
 
-            SECTION TO IMPROVE:
+            SECTION TO REWRITE:
             Title: {{section.Title}}
             Content:
             {{section.Body}}
 
-            Write the improved section. Start with the section heading as a markdown ## heading.
-            No preamble, no explanation — just the improved section text.
+            Output only the rewritten section. Start with the section heading as a markdown ## heading.
+            Do NOT add a document title or any # (H1) heading. No preamble, no explanation.
             """;
 
         var opts = new ChatCompletionOptions { MaxOutputTokenCount = ImprovementMaxTokens };
@@ -110,6 +119,8 @@ public class SoWImproverService(
             text = Regex.Replace(text, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
             text = text.TrimEnd('`', '\n', ' ');
         }
+        // Strip any leading H1 heading the model may have hallucinated
+        text = Regex.Replace(text, @"^#(?!#)[^\n]*\n+", "", RegexOptions.Multiline).TrimStart();
         return text;
     }
 

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using OpenAI.Chat;
 using SoWImprover.Models;
 
@@ -63,7 +64,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
 
         var opts = new ChatCompletionOptions { MaxOutputTokenCount = AnalysisMaxTokens };
         var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
-        return result.Value.Content[0].Text;
+        return StripCodeFences(result.Value.Content[0].Text);
     }
 
     private static readonly (string Heading, string AspectName)[] Sections =
@@ -111,7 +112,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
 
             var opts = new ChatCompletionOptions { MaxOutputTokenCount = SynthesisMaxTokens };
             var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
-            sectionTexts.Add(result.Value.Content[0].Text.Trim());
+            sectionTexts.Add(StripCodeFences(result.Value.Content[0].Text));
         }
 
         var intro = $"""
@@ -122,5 +123,14 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             """;
 
         return intro + string.Join("\n\n", sectionTexts);
+    }
+
+    private static string StripCodeFences(string text)
+    {
+        text = text.Trim();
+        if (!text.StartsWith("```"))
+            return text;
+        text = Regex.Replace(text, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
+        return text.TrimEnd('`', '\n', ' ');
     }
 }
