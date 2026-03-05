@@ -17,6 +17,7 @@ public static class MarkdownRenderer
             .UseTaskLists()
             .UseAutoLinks()
             .UseEmphasisExtras()
+            .DisableHtml()
             .Build();
 
     /// <summary>Renders <paramref name="markdown"/> to an HTML <see cref="MarkupString"/>.</summary>

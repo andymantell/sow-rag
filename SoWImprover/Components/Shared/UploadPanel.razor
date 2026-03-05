@@ -1,6 +1,7 @@
 @inject GoodDefinition Definition
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
+@inject ILogger<UploadPanel> Logger
 
 <form @onsubmit="HandleImproveClicked" @onsubmit:preventDefault>
 
@@ -58,7 +59,7 @@
 
 @if (_isImproving)
 {
-    <div class="app-definition-loading">
+    <div class="app-definition-loading" aria-live="polite">
         <div class="app-spinner" aria-hidden="true"></div>
         <span class="govuk-body-s">@(string.IsNullOrEmpty(_progressMessage) ? "Improving document..." : _progressMessage)</span>
     </div>
@@ -98,7 +99,14 @@
         _errors.Clear();
 
         if (_selectedFile is null)
+        {
             _errors.Add(("file-input", "Select a PDF to upload"));
+        }
+        else if (_selectedFile.ContentType != "application/pdf" &&
+                 !_selectedFile.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            _errors.Add(("file-input", "The selected file must be a PDF"));
+        }
 
         if (!Definition.IsReady)
             _errors.Add((null, "The service is still loading - please wait a moment before trying again"));
@@ -139,7 +147,8 @@
         }
         catch (Exception ex)
         {
-            _errors.Add((null, $"Something went wrong: {ex.Message}"));
+            Logger.LogError(ex, "Error improving document");
+            _errors.Add((null, "Something went wrong — please try again or contact support"));
         }
         finally
         {

@@ -22,6 +22,9 @@
     <script type="module">
         import { initAll } from '/govuk/govuk-frontend-6.1.0.min.js';
         initAll();
+        // Re-initialise GOV.UK Frontend components after each Blazor render,
+        // so dynamically rendered components (error summaries, banners, etc.) are enhanced.
+        document.addEventListener('blazor:afterupdate', () => initAll());
     </script>
     <script src="_framework/blazor.web.js"></script>
 

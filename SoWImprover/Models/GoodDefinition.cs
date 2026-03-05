@@ -14,6 +14,7 @@ public record DefinedSection(string Name, string Content);
 public class GoodDefinition
 {
     private volatile bool _isReady;
+    private volatile string _progressMessage = "";
 
     /// <summary>Canonical sections discovered from the corpus, each with its definition content.</summary>
     public IReadOnlyList<DefinedSection> Sections { get; private set; } = [];
@@ -21,14 +22,14 @@ public class GoodDefinition
     /// <summary>Full definition assembled as markdown for sidebar display.</summary>
     public string MarkdownContent { get; private set; } = "";
 
-    /// <summary>Current progress message during generation. Updated freely from the background thread.</summary>
-    public string ProgressMessage { get; private set; } = "";
+    /// <summary>Current progress message during generation. Written from the background thread, read from Blazor circuit threads.</summary>
+    public string ProgressMessage => _progressMessage;
 
     /// <summary>Whether the definition has been fully generated and is safe to read.</summary>
     public bool IsReady => _isReady;
 
     /// <summary>Updates the progress message. Safe to call at any point before SetReady.</summary>
-    public void SetProgress(string message) => ProgressMessage = message;
+    public void SetProgress(string message) => _progressMessage = message;
 
     /// <summary>Number of source documents analysed.</summary>
     public int DocumentCount { get; private set; }

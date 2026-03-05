@@ -14,7 +14,7 @@
             </div>
 
             @* One row per section *@
-            @foreach (var sec in Result.Sections)
+            @foreach (var (sec, sectionIndex) in Result.Sections.Select((s, i) => (s, i)))
             {
                 <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "")">
                     @* Left: original *@
@@ -27,7 +27,7 @@
                     <div class="diff-col">
                         @if (sec.Unrecognised)
                         {
-                            var unrecognisedId = $"nb-unrecognised-{sec.OriginalTitle.GetHashCode():x8}";
+                            var unrecognisedId = $"nb-unrecognised-{sectionIndex}";
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
                             <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
                                  role="region"
@@ -52,7 +52,7 @@
                                     .Where(l => l.StartsWith("-"))
                                     .Select(l => l[1..].Trim())
                                     .ToList();
-                                var bannerId = $"nb-{sec.OriginalTitle.GetHashCode():x8}";
+                                var bannerId = $"nb-{sectionIndex}";
                                 <div class="govuk-notification-banner app-explanation-banner"
                                      role="region"
                                      aria-labelledby="@bannerId"

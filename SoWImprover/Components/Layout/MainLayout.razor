@@ -1,7 +1,6 @@
 @inherits LayoutComponentBase
 @inject GoodDefinition Definition
 @inject IConfiguration Config
-@inject ILogger<MainLayout> Logger
 @implements IDisposable
 
 <header class="govuk-header" role="banner">
@@ -57,18 +56,16 @@
                 </a>
             </div>
         </div>
+
         <div class="govuk-footer__meta-custom app-status-bar__info">
             <span>@_modelLabel</span>
             <span class="app-status-bar__sep" aria-hidden="true">·</span>
+
             @if (Definition.IsReady)
             {
                 <span style="color:#00703c">Ready · @Definition.DocumentCount doc(s) · @Definition.ChunkCount chunks</span>
             }
-            else
-            {
-                <span>Loading…</span>
-            }
-        </div>
+        </div>        
     </div>
 </footer>
 
@@ -92,17 +89,10 @@
         try
         {
             while (!Definition.IsReady && !ct.IsCancellationRequested)
-            {
                 await Task.Delay(2000, ct);
-                await InvokeAsync(StateHasChanged);
-            }
             await InvokeAsync(StateHasChanged);
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Unexpected error in definition polling loop");
-        }
     }
 
     public void Dispose()

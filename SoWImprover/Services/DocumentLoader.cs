@@ -102,7 +102,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 
     private string GetPythonExe() => _pythonExe ??= FindPython();
 
-    private static string FindPython()
+    private string FindPython()
     {
         // py.exe is the Windows Python Launcher and is most reliable on Windows
         foreach (var candidate in new[] { "py", "python3", "python" })
@@ -122,7 +122,10 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
                 p?.WaitForExit(3000);
                 if (p?.ExitCode == 0) return candidate;
             }
-            catch { /* not found, try next */ }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Python candidate '{Candidate}' not usable", candidate);
+            }
         }
         throw new InvalidOperationException(
             "Python not found. Install Python 3 and run: pip install pymupdf4llm");

@@ -3,7 +3,7 @@
 
 @if (!Definition.IsReady)
 {
-    <div class="app-definition-loading">
+    <div class="app-definition-loading" aria-live="polite">
         <div class="app-spinner" aria-hidden="true"></div>
         <span class="govuk-body-s">@(string.IsNullOrEmpty(Definition.ProgressMessage) ? "Starting..." : Definition.ProgressMessage)</span>
     </div>
