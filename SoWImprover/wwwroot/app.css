@@ -5,6 +5,11 @@
 .govuk-width-container {
   max-width: 2000px;
 }
+
+/* Constrains prose/intro text to a comfortable reading width */
+.app-prose-width {
+  max-width: 60em;
+}
 @media (min-width: 40.0625em) {
   .govuk-width-container {
     margin-right: max(30px, calc(50% - 1000px));
