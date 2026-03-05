@@ -50,20 +50,23 @@
                     <div class="diff-col">
                         @if (sec.Unrecognised)
                         {
+                            var unrecognisedId = $"nb-unrecognised-{sec.OriginalTitle.GetHashCode():x8}";
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                            <div class="diff-unrecognised-notice">
-                                <span class="diff-unrecognised-icon" aria-hidden="true">&#9888;</span>
-                                Section not recognised — no improvements made.
+                            <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
+                                 role="region"
+                                 aria-labelledby="@unrecognisedId">
+                                <div class="govuk-notification-banner__header">
+                                    <h2 class="govuk-notification-banner__title" id="@unrecognisedId">Section not recognised</h2>
+                                </div>
+                                <div class="govuk-notification-banner__content">
+                                    <p class="govuk-body">This section could not be matched to the definition of good - no improvements have been made.</p>
+                                </div>
                             </div>
                             @MarkdownRenderer.ToMarkupString(sec.OriginalContent)
                         }
                         else
                         {
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                            @if (!string.IsNullOrWhiteSpace(sec.MatchedSection))
-                            {
-                                <div class="diff-matched-tag">Improved using: <strong>@sec.MatchedSection</strong></div>
-                            }
                             @if (!string.IsNullOrWhiteSpace(sec.Explanation))
                             {
                                 var bullets = sec.Explanation
@@ -72,21 +75,31 @@
                                     .Where(l => l.StartsWith("-"))
                                     .Select(l => l[1..].Trim())
                                     .ToList();
-                                <div class="diff-explanation">
-                                    <p class="diff-explanation__label">What changed:</p>
-                                    @if (bullets.Count > 0)
-                                    {
-                                        <ul class="diff-explanation__bullets">
-                                            @foreach (var b in bullets)
-                                            {
-                                                <li>@b</li>
-                                            }
-                                        </ul>
-                                    }
-                                    else
-                                    {
-                                        <p>@sec.Explanation</p>
-                                    }
+                                var bannerId = $"nb-{sec.OriginalTitle.GetHashCode():x8}";
+                                <div class="govuk-notification-banner app-explanation-banner"
+                                     role="region"
+                                     aria-labelledby="@bannerId"
+                                     data-module="govuk-notification-banner">
+                                    <div class="govuk-notification-banner__header">
+                                        <h2 class="govuk-notification-banner__title" id="@bannerId">
+                                            What changed@(string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})")
+                                        </h2>
+                                    </div>
+                                    <div class="govuk-notification-banner__content">
+                                        @if (bullets.Count > 0)
+                                        {
+                                            <ul class="govuk-list govuk-list--bullet">
+                                                @foreach (var b in bullets)
+                                                {
+                                                    <li>@MarkdownRenderer.ToInlineMarkupString(b)</li>
+                                                }
+                                            </ul>
+                                        }
+                                        else
+                                        {
+                                            <p class="govuk-body">@MarkdownRenderer.ToInlineMarkupString(sec.Explanation)</p>
+                                        }
+                                    </div>
                                 </div>
                             }
                             @MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? "")
