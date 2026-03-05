@@ -21,20 +21,19 @@ public class SoWImproverService(
         var client = await factory.GetChatClientAsync(ct);
         var sections = SplitIntoSections(originalText);
 
-        // Embed-based matching: one batch embedding call for all uploaded titles
+        // Embed title + body for each uploaded section — the body carries the semantic signal
+        // needed to distinguish sections that embedding-match only on title.
+        // Canonical section embeddings use name + definition content (computed at startup).
         progress?.Report("Matching sections…");
-        var uploadedTitles = sections.Select(s => s.Title).ToList();
-        var threshold = config.GetValue<float>("Docs:MatchThreshold", 0.6f);
-        var matching = await definition.Retriever!.MatchSectionsAsync(uploadedTitles, threshold, ct);
+        var threshold = config.GetValue<float>("Docs:MatchThreshold", 0.5f);
+        var titles = sections.Select(s => s.Title).ToList();
+        var embeddingTexts = sections.Select(s => $"{s.Title}\n\n{s.Body}").ToList();
+        var matching = await definition.Retriever!.MatchSectionsAsync(titles, embeddingTexts, threshold, ct);
 
         var sectionResults = new List<SectionResult>(sections.Count);
         var allChunks = new List<DocumentChunk>();
         var improvedCount = 0;
-        var totalToImprove = uploadedTitles.Count(t =>
-        {
-            matching.TryGetValue(t, out var m);
-            return m is not null;
-        });
+        var totalToImprove = matching.Values.Count(m => m is not null);
 
         foreach (var section in sections)
         {
@@ -91,6 +90,8 @@ public class SoWImproverService(
             ChunksUsed = chunksUsed
         };
     }
+
+    // ── LLM calls ─────────────────────────────────────────────────────────────
 
     private static async Task<string> ImproveSectionAsync(
         ChatClient client,
@@ -208,7 +209,6 @@ public class SoWImproverService(
         var t = line.Trim();
         return t.Length > 2 && t.Any(char.IsLetter) && t == t.ToUpperInvariant();
     }
-
 }
 
 internal record DocumentSection(string Title, string Body);

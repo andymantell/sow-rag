@@ -27,6 +27,10 @@ Components/Shared/               # DefinitionSidebar, UploadPanel, ResultsPanel
 sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
 ```
 
+## Workflow Rules
+
+- **Ask before refactoring** — when a fix involves replacing one approach with a different one (e.g. swapping embedding-based matching for string-based matching), stop and discuss the trade-offs with the user before implementing. Don't assume the simpler approach is acceptable.
+
 ## Critical Don'ts
 
 - **Never use `FoundryLocalManager.StartWebServiceAsync()`** — it starts an in-process Foundry service that cannot find models downloaded by the CLI. Always connect via `foundry service status` subprocess.

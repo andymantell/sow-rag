@@ -60,38 +60,36 @@
                         else
                         {
                             <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                            @MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? "")
+                            @if (!string.IsNullOrWhiteSpace(sec.MatchedSection))
+                            {
+                                <div class="diff-matched-tag">Improved using: <strong>@sec.MatchedSection</strong></div>
+                            }
                             @if (!string.IsNullOrWhiteSpace(sec.Explanation))
                             {
-                                <details class="govuk-details diff-explanation">
-                                    <summary class="govuk-details__summary">
-                                        <span class="govuk-details__summary-text">What was improved</span>
-                                    </summary>
-                                    <div class="govuk-details__text">
-                                        @{
-                                            var bullets = sec.Explanation
-                                                .Split('\n')
-                                                .Select(l => l.Trim())
-                                                .Where(l => l.StartsWith("-"))
-                                                .Select(l => l[1..].Trim())
-                                                .ToList();
-                                        }
-                                        @if (bullets.Count > 0)
-                                        {
-                                            <ul class="annotation-item__bullets">
-                                                @foreach (var b in bullets)
-                                                {
-                                                    <li>@b</li>
-                                                }
-                                            </ul>
-                                        }
-                                        else
-                                        {
-                                            <p>@sec.Explanation</p>
-                                        }
-                                    </div>
-                                </details>
+                                var bullets = sec.Explanation
+                                    .Split('\n')
+                                    .Select(l => l.Trim())
+                                    .Where(l => l.StartsWith("-"))
+                                    .Select(l => l[1..].Trim())
+                                    .ToList();
+                                <div class="diff-explanation">
+                                    <p class="diff-explanation__label">What changed:</p>
+                                    @if (bullets.Count > 0)
+                                    {
+                                        <ul class="diff-explanation__bullets">
+                                            @foreach (var b in bullets)
+                                            {
+                                                <li>@b</li>
+                                            }
+                                        </ul>
+                                    }
+                                    else
+                                    {
+                                        <p>@sec.Explanation</p>
+                                    }
+                                </div>
                             }
+                            @MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? "")
                         }
                     </div>
                 </div>

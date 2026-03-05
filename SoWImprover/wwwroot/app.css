@@ -491,7 +491,37 @@ del {
   font-size: 16px;
 }
 
+.diff-matched-tag {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  background: #e8f0fe;
+  border: 1px solid #aecbfa;
+  border-radius: 3px;
+  font-size: 13px;
+  color: #1a3a6b;
+}
+
 .diff-explanation {
-  margin-top: 12px;
-  font-size: 14px;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  background: #f8f8f8;
+  border-left: 3px solid #b1b4b6;
+  font-size: 13px;
+}
+
+.diff-explanation__label {
+  margin: 0 0 4px;
+  font-weight: bold;
+  color: #505a5f;
+}
+
+.diff-explanation__bullets {
+  margin: 0;
+  padding-left: 18px;
+  color: #505a5f;
+}
+
+.diff-explanation__bullets li {
+  margin-bottom: 2px;
 }
