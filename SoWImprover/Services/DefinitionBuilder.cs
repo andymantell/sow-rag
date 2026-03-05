@@ -12,18 +12,22 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
 
     /// <summary>Canonical SoW sections used to generate the definition of good.</summary>
     private static readonly IReadOnlyList<string> CanonicalSections =
-    [
-        "Background and Context",
-        "Objectives",
-        "Scope of Services",
-        "Deliverables",
-        "Milestones and Timeline",
-        "Governance and Reporting",
-        "Roles and Responsibilities",
-        "Dependencies and Assumptions",
+    [                    
         "Acceptance Criteria",
-        "Pricing and Payment",
+        "Deliverables	",
+        "Introduction/Background	",
+        "Project Management and Reporting",
+        "Project Requirements	",
+        "Project Timeline and Milestones",
+        "Roles and Responsibilities",
+        "Scope of Work",
+        "Budget and Payment Terms",
         "Change Control",
+        "Intellectual Property and Confidentiality",
+        "Risk Management	",
+        "Sign-Off and Approvals",
+        "Termination",
+        "Warranties and Liabilities",
     ];
 
     /// <summary>

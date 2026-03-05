@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using OpenAI.Chat;
 using SoWImprover.Models;
@@ -6,12 +7,12 @@ namespace SoWImprover.Services;
 
 public class SoWImproverService(
     FoundryClientFactory factory,
-    IConfiguration config,
     ILogger<SoWImproverService> logger)
 {
     private const int MaxDefinitionChars = 2_000;
     private const int ImprovementMaxTokens = 2048;
     private const int ExplanationMaxTokens = 300;
+    private const int MatchingMaxTokens = 600;
     private const int SnippetMaxChars = 200;
 
     public async Task<ImprovementResult> ImproveAsync(
@@ -21,14 +22,11 @@ public class SoWImproverService(
         var client = await factory.GetChatClientAsync(ct);
         var sections = SplitIntoSections(originalText);
 
-        // Embed title + body for each uploaded section — the body carries the semantic signal
-        // needed to distinguish sections that embedding-match only on title.
-        // Canonical section embeddings use name + definition content (computed at startup).
+        // One LLM call to classify all uploaded section titles against the canonical set.
         progress?.Report("Matching sections…");
-        var threshold = config.GetValue<float>("Docs:MatchThreshold", 0.5f);
-        var titles = sections.Select(s => s.Title).ToList();
-        var embeddingTexts = sections.Select(s => $"{s.Title}\n\n{s.Body}").ToList();
-        var matching = await definition.Retriever!.MatchSectionsAsync(titles, embeddingTexts, threshold, ct);
+        var canonicalNames = definition.Sections.Select(s => s.Name).ToList();
+        var uploadedTitles = sections.Select(s => s.Title).ToList();
+        var matching = await MatchSectionsAsync(client, uploadedTitles, canonicalNames, ct);
 
         var sectionResults = new List<SectionResult>(sections.Count);
         var allChunks = new List<DocumentChunk>();
@@ -92,6 +90,68 @@ public class SoWImproverService(
     }
 
     // ── LLM calls ─────────────────────────────────────────────────────────────
+
+    private async Task<Dictionary<string, string?>> MatchSectionsAsync(
+        ChatClient client,
+        IList<string> uploadedTitles,
+        IList<string> canonicalNames,
+        CancellationToken ct)
+    {
+        var titlesJson   = JsonSerializer.Serialize(uploadedTitles);
+        var canonicalJson = JsonSerializer.Serialize(canonicalNames);
+
+        var prompt = $$"""
+            You are classifying sections from an uploaded Statement of Work (SoW) document.
+
+            UPLOADED SECTION TITLES:
+            {{titlesJson}}
+
+            CANONICAL SECTION NAMES (the only valid mapping targets):
+            {{canonicalJson}}
+
+            For each uploaded title, identify the single best-matching canonical name.
+            Use semantic meaning — the wording may differ but the intent must align.
+            If no canonical section is a reasonable semantic match, use null.
+
+            Respond with a JSON object mapping each uploaded title (exactly as given) to either
+            the matched canonical name (exactly as given) or null. No explanation, no markdown.
+            Example: {"Title A": "Canonical X", "Title B": null}
+            """;
+
+        var opts = new ChatCompletionOptions { MaxOutputTokenCount = MatchingMaxTokens };
+        var completion = await client.CompleteChatAsync(
+            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
+
+        var json = completion.Value.Content[0].Text.Trim();
+        // Strip markdown code fence if present
+        if (json.StartsWith("```"))
+        {
+            json = Regex.Replace(json, @"^```[a-z]*\n?", "", RegexOptions.Multiline)
+                        .TrimEnd('`', '\n', ' ');
+        }
+
+        try
+        {
+            var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)
+                      ?? [];
+            var result = new Dictionary<string, string?>(raw.Count);
+            foreach (var (k, v) in raw)
+                result[k] = v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            foreach (var title in uploadedTitles)
+            {
+                result.TryGetValue(title, out var matched);
+                logger.LogInformation("Section match: '{Title}' → '{Match}'",
+                    title, matched ?? "none");
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to parse section matching JSON; treating all as unmatched");
+            return uploadedTitles.ToDictionary(t => t, _ => (string?)null);
+        }
+    }
 
     private static async Task<string> ImproveSectionAsync(
         ChatClient client,

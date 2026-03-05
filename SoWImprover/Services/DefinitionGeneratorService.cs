@@ -11,8 +11,7 @@ public class DefinitionGeneratorService(
     EmbeddingService embeddingService,
     GoodDefinition definition,
     IConfiguration config,
-    ILogger<DefinitionGeneratorService> logger,
-    ILogger<EmbeddingRetriever> retrieverLogger) : BackgroundService
+    ILogger<DefinitionGeneratorService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -33,23 +32,10 @@ public class DefinitionGeneratorService(
         definition.SetProgress("Computing embeddings…");
         var vectors = await GetOrComputeChunkVectorsAsync(chunks, folder, ct);
 
-        // Build the definition of good — canonical embeddings need the definition content,
-        // so they are computed after this step.
         logger.LogInformation("Generating definition from {Count} document(s)", documents.Count);
         var sections = await builder.BuildDefinitionAsync(documents, definition.SetProgress, ct);
 
-        // Embed canonical sections using name + definition content for section matching.
-        // Richer text gives far better signal than section names alone.
-        definition.SetProgress("Preparing section index…");
-        logger.LogInformation("Embedding {Count} canonical section definitions", sections.Count);
-        var canonicalTexts = sections.Select(s => $"{s.Name}\n\n{s.Content}").ToList();
-        var canonicalVectors = await embeddingService.EmbedBatchAsync(canonicalTexts, ct);
-        var canonicalEmbeddings = sections
-            .Zip(canonicalVectors, (s, v) => (s.Name, v))
-            .ToDictionary(x => x.Name, x => x.v);
-
-        var retriever = new EmbeddingRetriever(
-            chunks, vectors, canonicalEmbeddings, embeddingService, retrieverLogger, topK);
+        var retriever = new EmbeddingRetriever(chunks, vectors, embeddingService, topK);
 
         definition.SetReady(sections, retriever, retriever.DocumentCount, retriever.ChunkCount);
 

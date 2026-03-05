@@ -53,7 +53,7 @@ sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
 
 **Per-section LLM prompts:** Use `$$"""..."""` raw strings (double-dollar) to allow literal `{` in JSON examples alongside `{{interpolations}}`.
 
-**`RuntimeIdentifier = win-x64`** required in `.csproj` (Microsoft.AI.Foundry.Local NuGet constraint, even though FoundryLocalManager is unused at runtime).
+**`RuntimeIdentifier = win-x64`** set in `.csproj` — app targets Windows only (Foundry Local CLI is Windows-only). `Microsoft.AI.Foundry.Local` and `UglyToad.PdfPig` NuGets have been removed (unused).
 
 ## Current Task
 Embedding-based RAG implementation complete. Smoke test in progress — last run had chunker whitespace-split fix applied. To continue:
