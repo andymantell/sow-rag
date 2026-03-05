@@ -1,3 +1,5 @@
+using SoWImprover.Services;
+
 namespace SoWImprover.Models;
 
 /// <summary>A single canonical section with its definition-of-good content.</summary>
@@ -34,14 +36,22 @@ public class GoodDefinition
     /// <summary>Total corpus chunks loaded.</summary>
     public int ChunkCount { get; private set; }
 
+    /// <summary>The semantic retriever, available once IsReady is true.</summary>
+    public EmbeddingRetriever? Retriever { get; private set; }
+
     /// <summary>
     /// Sets all properties and marks the definition as ready.
     /// IsReady is set last (volatile write) to act as a release fence.
     /// </summary>
-    public void SetReady(IReadOnlyList<DefinedSection> sections, int documentCount, int chunkCount)
+    public void SetReady(
+        IReadOnlyList<DefinedSection> sections,
+        EmbeddingRetriever retriever,
+        int documentCount,
+        int chunkCount)
     {
         Sections = sections;
         MarkdownContent = string.Join("\n\n", sections.Select(s => $"## {s.Name}\n\n{s.Content}"));
+        Retriever = retriever;
         DocumentCount = documentCount;
         ChunkCount = chunkCount;
         _isReady = true;

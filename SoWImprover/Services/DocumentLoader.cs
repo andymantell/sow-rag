@@ -132,7 +132,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 
     private List<DocumentChunk> ChunkText(string text, string sourceFile)
     {
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = text.Split([' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries);
         var chunks = new List<DocumentChunk>();
         int i = 0, index = 0;
 

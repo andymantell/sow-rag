@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using SoWImprover.Models;
 
 namespace SoWImprover.Services;
@@ -5,26 +8,177 @@ namespace SoWImprover.Services;
 public class DefinitionGeneratorService(
     DocumentLoader loader,
     DefinitionBuilder builder,
-    SimpleRetriever retriever,
+    EmbeddingService embeddingService,
     GoodDefinition definition,
     IConfiguration config,
     ILogger<DefinitionGeneratorService> logger) : BackgroundService
 {
+    // Must match DefinitionBuilder.CanonicalSections exactly.
+    private static readonly IReadOnlyList<string> CanonicalSections =
+    [
+        "Background and Context",
+        "Objectives",
+        "Scope of Services",
+        "Deliverables",
+        "Milestones and Timeline",
+        "Governance and Reporting",
+        "Roles and Responsibilities",
+        "Dependencies and Assumptions",
+        "Acceptance Criteria",
+        "Pricing and Payment",
+        "Change Control",
+    ];
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         var folder = config["Docs:KnownGoodFolder"] ?? "./sample-sows";
+        var topK = config.GetValue<int>("Docs:TopKChunks", 5);
 
-        logger.LogInformation("Starting definition generation from folder: {Folder}", folder);
+        logger.LogInformation("Loading corpus from: {Folder}", folder);
+        definition.SetProgress("Loading corpus…");
 
+        // Load chunks and document texts (throws if folder is empty)
+        var chunks = loader.LoadFolder(folder);
         var documents = loader.GetCachedTexts();
 
-        logger.LogInformation("Generating definition from {Count} document(s), {Chunks} chunks",
-            documents.Count, retriever.ChunkCount);
+        logger.LogInformation("Loaded {Docs} document(s), {Chunks} chunks",
+            documents.Count, chunks.Count);
 
+        // Compute or load cached chunk embeddings
+        definition.SetProgress("Computing embeddings…");
+        var vectors = await GetOrComputeChunkVectorsAsync(chunks, folder, ct);
+
+        // Pre-embed canonical section names (always in-memory — 11 short strings)
+        definition.SetProgress("Preparing section index…");
+        logger.LogInformation("Embedding {Count} canonical section names",
+            CanonicalSections.Count);
+        var canonicalVectors = await embeddingService.EmbedBatchAsync(CanonicalSections, ct);
+        var canonicalEmbeddings = CanonicalSections
+            .Zip(canonicalVectors, (name, vec) => (name, vec))
+            .ToDictionary(x => x.name, x => x.vec);
+
+        var retriever = new EmbeddingRetriever(
+            chunks, vectors, canonicalEmbeddings, embeddingService, topK);
+
+        // Build the definition of good
+        logger.LogInformation("Generating definition from {Count} document(s)", documents.Count);
         var sections = await builder.BuildDefinitionAsync(documents, definition.SetProgress, ct);
 
-        definition.SetReady(sections, retriever.DocumentCount, retriever.ChunkCount);
+        definition.SetReady(sections, retriever, retriever.DocumentCount, retriever.ChunkCount);
 
         logger.LogInformation("Definition of good is ready ({Count} section(s))", sections.Count);
     }
+
+    /// <summary>
+    /// Returns chunk embedding vectors, loading from cache if valid or recomputing otherwise.
+    /// Cache file: <c>{folder}/embeddings-cache.json</c>.
+    /// Cache is valid when fingerprint and model name both match.
+    /// </summary>
+    private async Task<float[][]> GetOrComputeChunkVectorsAsync(
+        List<DocumentChunk> chunks,
+        string folder,
+        CancellationToken ct)
+    {
+        var modelName = config.GetValue<bool>("Foundry:UseLocal")
+            ? config["Ollama:EmbeddingModelName"] ?? "nomic-embed-text"
+            : config["Foundry:CloudEmbeddingDeployment"] ?? "text-embedding-3-small";
+        var cacheFile = Path.Combine(folder, "embeddings-cache.json");
+        var fingerprint = ComputeCorpusFingerprint(folder);
+
+        // Try loading from cache
+        if (File.Exists(cacheFile))
+        {
+            try
+            {
+                var cached = JsonSerializer.Deserialize<EmbeddingCacheFile>(
+                    await File.ReadAllTextAsync(cacheFile, ct));
+
+                if (cached?.Fingerprint == fingerprint
+                    && cached.Model == modelName
+                    && cached.Entries.Count == chunks.Count)
+                {
+                    logger.LogInformation(
+                        "Loaded {Count} chunk embeddings from cache", chunks.Count);
+                    return cached.Entries
+                        .OrderBy(e => e.GlobalIndex)
+                        .Select(e => e.Vector)
+                        .ToArray();
+                }
+
+                logger.LogInformation("Embedding cache is stale — recomputing");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not read embedding cache — recomputing");
+            }
+        }
+
+        // Recompute
+        logger.LogInformation(
+            "Embedding {Count} chunks (this may take a moment)…", chunks.Count);
+        var texts = chunks.Select(c => c.Text).ToArray();
+        var vectors = await embeddingService.EmbedBatchAsync(texts, ct);
+
+        // Persist cache
+        try
+        {
+            var cacheData = new EmbeddingCacheFile
+            {
+                Fingerprint = fingerprint,
+                Model = modelName,
+                Entries = chunks
+                    .Select((c, i) => new EmbeddingCacheEntry
+                    {
+                        SourceFile = c.SourceFile,
+                        ChunkIndex = c.ChunkIndex,
+                        GlobalIndex = i,
+                        Vector = vectors[i]
+                    })
+                    .ToList()
+            };
+            var json = JsonSerializer.Serialize(
+                cacheData, new JsonSerializerOptions { WriteIndented = false });
+            await File.WriteAllTextAsync(cacheFile, json, ct);
+            logger.LogInformation("Embedding cache saved to {Path}", cacheFile);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not save embedding cache — continuing without it");
+        }
+
+        return vectors;
+    }
+
+    /// <summary>
+    /// SHA256 of sorted "filename|size" entries for all PDFs in the folder.
+    /// Detects additions, removals, and replacements without hashing file contents.
+    /// </summary>
+    private static string ComputeCorpusFingerprint(string folder)
+    {
+        var entries = Directory
+            .GetFiles(folder, "*.pdf")
+            .OrderBy(f => f)
+            .Select(f => $"{Path.GetFileName(f)}|{new FileInfo(f).Length}");
+
+        var combined = string.Join("\n", entries);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+}
+
+// ── Cache file models ────────────────────────────────────────────────────────
+
+file sealed class EmbeddingCacheFile
+{
+    public string Fingerprint { get; set; } = "";
+    public string Model { get; set; } = "";
+    public List<EmbeddingCacheEntry> Entries { get; set; } = [];
+}
+
+file sealed class EmbeddingCacheEntry
+{
+    public string SourceFile { get; set; } = "";
+    public int ChunkIndex { get; set; }
+    public int GlobalIndex { get; set; }
+    public float[] Vector { get; set; } = [];
 }

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using OpenAI.Chat;
 using SoWImprover.Models;
@@ -7,11 +6,10 @@ namespace SoWImprover.Services;
 
 public class SoWImproverService(
     FoundryClientFactory factory,
-    SimpleRetriever retriever,
+    IConfiguration config,
     ILogger<SoWImproverService> logger)
 {
     private const int MaxDefinitionChars = 2_000;
-    private const int MatchingMaxTokens = 512;
     private const int ImprovementMaxTokens = 2048;
     private const int ExplanationMaxTokens = 300;
     private const int SnippetMaxChars = 200;
@@ -23,11 +21,11 @@ public class SoWImproverService(
         var client = await factory.GetChatClientAsync(ct);
         var sections = SplitIntoSections(originalText);
 
-        // One bulk call to map uploaded section titles → canonical section names
+        // Embed-based matching: one batch embedding call for all uploaded titles
         progress?.Report("Matching sections…");
         var uploadedTitles = sections.Select(s => s.Title).ToList();
-        var canonicalNames = definition.Sections.Select(s => s.Name).ToList();
-        var matching = await MatchSectionsAsync(client, uploadedTitles, canonicalNames, ct);
+        var threshold = config.GetValue<float>("Docs:MatchThreshold", 0.6f);
+        var matching = await definition.Retriever!.MatchSectionsAsync(uploadedTitles, threshold, ct);
 
         var sectionResults = new List<SectionResult>(sections.Count);
         var allChunks = new List<DocumentChunk>();
@@ -61,7 +59,7 @@ public class SoWImproverService(
             improvedCount++;
             progress?.Report($"Improving: {section.Title} ({improvedCount} of {totalToImprove})");
             logger.LogInformation("Improving section '{Title}' → '{Canonical}'", section.Title, matchedName);
-            var chunks = retriever.Retrieve(section.Body);
+            var chunks = await definition.Retriever!.RetrieveAsync(section.Body, ct);
             allChunks.AddRange(chunks);
 
             var improved = await ImproveSectionAsync(client, section, chunks, definedSection.Content, ct);
@@ -92,47 +90,6 @@ public class SoWImproverService(
             Sections = sectionResults,
             ChunksUsed = chunksUsed
         };
-    }
-
-    private static async Task<Dictionary<string, string?>> MatchSectionsAsync(
-        ChatClient client,
-        List<string> uploadedTitles,
-        List<string> canonicalNames,
-        CancellationToken ct)
-    {
-        var uploaded = JsonSerializer.Serialize(uploadedTitles);
-        var canonical = JsonSerializer.Serialize(canonicalNames);
-
-        var prompt = $$"""
-            Match each uploaded SoW section title to the most appropriate canonical section name from the list below.
-            Use null when there is no reasonable match.
-            Output only a JSON object mapping each uploaded title to its canonical match or null.
-            Example: {"Introduction": null, "Payment Schedule": "Payment Terms"}
-
-            Canonical sections: {{canonical}}
-            Uploaded sections: {{uploaded}}
-            """;
-
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = MatchingMaxTokens };
-        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
-        return ParseMatchingJson(result.Value.Content[0].Text, uploadedTitles);
-    }
-
-    private static Dictionary<string, string?> ParseMatchingJson(string text, List<string> uploadedTitles)
-    {
-        text = StripCodeFences(text);
-        try
-        {
-            var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text) ?? [];
-            return raw.ToDictionary(
-                kvp => kvp.Key,
-                kvp => kvp.Value.ValueKind == JsonValueKind.Null ? null : kvp.Value.GetString());
-        }
-        catch
-        {
-            // If parsing fails, treat all sections as unrecognised
-            return uploadedTitles.ToDictionary(t => t, _ => (string?)null);
-        }
     }
 
     private static async Task<string> ImproveSectionAsync(
@@ -252,14 +209,6 @@ public class SoWImproverService(
         return t.Length > 2 && t.Any(char.IsLetter) && t == t.ToUpperInvariant();
     }
 
-    private static string StripCodeFences(string text)
-    {
-        text = text.Trim();
-        if (!text.StartsWith("```"))
-            return text;
-        text = Regex.Replace(text, @"^```[a-z]*\n?", "", RegexOptions.Multiline);
-        return text.TrimEnd('`', '\n', ' ');
-    }
 }
 
 internal record DocumentSection(string Title, string Body);

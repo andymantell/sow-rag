@@ -2,6 +2,7 @@ using Azure;
 using Azure.AI.OpenAI;
 using OpenAI;
 using OpenAI.Chat;
+using OpenAI.Embeddings;
 using System.ClientModel;
 using System.Diagnostics;
 using System.Text.Json;
@@ -19,7 +20,11 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
     private static readonly HttpClient _http = new();
 
     private ChatClient? _cached;
+    private EmbeddingClient? _cachedEmbedding;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private string? _cachedServiceRoot;
+    private readonly SemaphoreSlim _rootLock = new(1, 1);
+    private readonly SemaphoreSlim _embeddingLock = new(1, 1);
 
     /// <summary>
     /// Returns a <see cref="ChatClient"/> configured for either local Foundry or Azure AI cloud,
@@ -44,6 +49,82 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
         }
     }
 
+    /// <summary>
+    /// Returns an <see cref="EmbeddingClient"/> for embeddings.
+    /// When <c>Foundry:UseLocal</c> is true, connects to Ollama (<c>Ollama:Endpoint</c>).
+    /// When false, connects to Azure AI Foundry cloud (<c>Foundry:Cloud*</c> settings).
+    /// </summary>
+    public async Task<EmbeddingClient> GetEmbeddingClientAsync(CancellationToken ct = default)
+    {
+        if (_cachedEmbedding is not null) return _cachedEmbedding;
+
+        await _embeddingLock.WaitAsync(ct);
+        try
+        {
+            if (_cachedEmbedding is not null) return _cachedEmbedding;
+
+            _cachedEmbedding = config.GetValue<bool>("Foundry:UseLocal")
+                ? CreateOllamaEmbeddingClient()
+                : CreateAzureEmbeddingClient();
+
+            return _cachedEmbedding;
+        }
+        finally
+        {
+            _embeddingLock.Release();
+        }
+    }
+
+    private EmbeddingClient CreateOllamaEmbeddingClient()
+    {
+        var endpoint = config["Ollama:Endpoint"] ?? "http://localhost:11434/v1";
+        var modelName = config["Ollama:EmbeddingModelName"] ?? "nomic-embed-text";
+
+        logger.LogInformation("Embedding client (Ollama) — endpoint: {Url}, model: {Model}",
+            endpoint, modelName);
+
+        var openAiClient = new OpenAIClient(
+            new ApiKeyCredential("ollama"),
+            new OpenAIClientOptions { Endpoint = new Uri(endpoint) });
+
+        return openAiClient.GetEmbeddingClient(modelName);
+    }
+
+    private EmbeddingClient CreateAzureEmbeddingClient()
+    {
+        var endpoint = config["Foundry:CloudEndpoint"]
+            ?? throw new InvalidOperationException("Foundry:CloudEndpoint is not configured.");
+        var apiKey = config["Foundry:CloudApiKey"]
+            ?? throw new InvalidOperationException("Foundry:CloudApiKey is not configured.");
+        var deployment = config["Foundry:CloudEmbeddingDeployment"]
+            ?? throw new InvalidOperationException("Foundry:CloudEmbeddingDeployment is not configured.");
+
+        logger.LogInformation("Embedding client (Azure) — endpoint: {Endpoint}, deployment: {Deployment}",
+            endpoint, deployment);
+
+        var azureClient = new AzureOpenAIClient(
+            new Uri(endpoint),
+            new AzureKeyCredential(apiKey));
+
+        return azureClient.GetEmbeddingClient(deployment);
+    }
+
+    private async Task<string> GetServiceRootAsync(CancellationToken ct)
+    {
+        if (_cachedServiceRoot is not null) return _cachedServiceRoot;
+
+        await _rootLock.WaitAsync(ct);
+        try
+        {
+            _cachedServiceRoot ??= await DiscoverFoundryEndpointAsync(ct);
+            return _cachedServiceRoot;
+        }
+        finally
+        {
+            _rootLock.Release();
+        }
+    }
+
     private async Task<ChatClient> CreateLocalClientAsync(CancellationToken ct)
     {
         var alias = config["Foundry:LocalModelName"]
@@ -53,7 +134,7 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
 
         // serviceRoot = http://host:PORT  (used to query /v1/models)
         // sdkEndpoint = http://host:PORT/v1  (OpenAI SDK appends /chat/completions from here)
-        var serviceRoot = await DiscoverFoundryEndpointAsync(ct);
+        var serviceRoot = await GetServiceRootAsync(ct);
         var sdkEndpoint = serviceRoot + "/v1";
 
         // Resolve the config alias (e.g. "phi-4") to the actual model ID the service expects
