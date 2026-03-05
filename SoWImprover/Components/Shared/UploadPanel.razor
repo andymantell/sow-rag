@@ -1,6 +1,8 @@
 @inject GoodDefinition Definition
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
+@inject ResultState ResultState
+@inject NavigationManager Nav
 @inject ILogger<UploadPanel> Logger
 
 <form @onsubmit="HandleImproveClicked" @onsubmit:preventDefault>
@@ -70,7 +72,6 @@
 @code {
     private const long MaxUploadBytes = 28 * 1024 * 1024;
 
-    [Parameter] public EventCallback<ImprovementResult> OnImproved { get; set; }
 
     private IBrowserFile? _selectedFile;
     private bool _isImproving;
@@ -123,7 +124,7 @@
         StateHasChanged();
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"sow_{Guid.NewGuid():N}.pdf");
-        ImprovementResult? result = null;
+        var navigating = false;
         try
         {
             using (var fs = File.Create(tempPath))
@@ -143,7 +144,12 @@
                 _progressMessage = msg;
                 InvokeAsync(StateHasChanged);
             });
-            result = await Improver.ImproveAsync(originalText, Definition, progress);
+            var result = await Improver.ImproveAsync(originalText, Definition, progress);
+
+            // Set state and navigate before finally runs — avoids a StateHasChanged/NavigateTo race
+            ResultState.Current = result;
+            navigating = true;
+            Nav.NavigateTo("/results");
         }
         catch (Exception ex)
         {
@@ -153,12 +159,12 @@
         finally
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
-            _isImproving = false;
-            _progressMessage = "";
-            StateHasChanged();
+            if (!navigating)
+            {
+                _isImproving = false;
+                _progressMessage = "";
+                StateHasChanged();
+            }
         }
-
-        if (result is not null)
-            await OnImproved.InvokeAsync(result);
     }
 }

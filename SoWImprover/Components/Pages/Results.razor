@@ -1,5 +1,5 @@
 @page "/results"
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject ResultState ResultState
 @inject NavigationManager Nav
 

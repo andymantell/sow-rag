@@ -1,7 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
 @inject ResultState ResultState
-@inject NavigationManager Nav
 
 <div class="govuk-width-container">
     <main class="govuk-main-wrapper" id="main-content">
@@ -9,16 +8,10 @@
         <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
         <DefinitionSidebar />
         <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
-        <UploadPanel OnImproved="HandleImproved" />
+        <UploadPanel />
     </main>
 </div>
 
 @code {
     protected override void OnInitialized() => ResultState.Current = null;
-
-    private void HandleImproved(ImprovementResult result)
-    {
-        ResultState.Current = result;
-        Nav.NavigateTo("/results");
-    }
 }
