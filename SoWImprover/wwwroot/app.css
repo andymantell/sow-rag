@@ -427,9 +427,13 @@ del {
   display: contents;
 }
 
-/* Top border on each pair of cells to separate sections visually */
+/* Top border on each pair of cells to separate sections visually.
+ * Override overflow-y: auto from the base .diff-col rule — cells must
+ * expand to their full content height so the whole panel scrolls as one. */
 .diff-section-row > .diff-col {
   border-top: 1px solid #b1b4b6;
+  overflow-y: visible;
+  height: auto;
 }
 
 /* Unrecognised row: tint both cells */
