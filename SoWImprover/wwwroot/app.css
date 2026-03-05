@@ -206,6 +206,13 @@ html.govuk-template,
   font-weight: 700;
 }
 
+.app-progress-message {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 13px;
+  color: #505a5f;
+  font-style: italic;
+}
+
 /* ── Annotations (what changed) ──────────────────────────── */
 .app-annotations {
   flex-shrink: 0;
@@ -259,10 +266,8 @@ html.govuk-template,
 
 .diff-panels {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
   min-height: 0;
+  /* layout overridden by section-per-row block below */
 }
 
 .diff-header-row {
@@ -394,4 +399,74 @@ del {
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 14px;
   color: #505a5f;
+}
+
+/* ── Section-per-row diff layout ─────────────────────────── */
+
+/*
+ * .diff-panels becomes a 2-column grid so every section row's left
+ * and right cells share the same column tracks — guaranteed alignment.
+ * The header row spans both columns.
+ * .diff-section-row uses display:contents so its two .diff-col children
+ * become direct grid items.
+ */
+.diff-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.diff-header-row {
+  grid-column: 1 / -1;
+}
+
+/* display:contents removes the section row box so cells join the grid */
+.diff-section-row {
+  display: contents;
+}
+
+/* Top border on each pair of cells to separate sections visually */
+.diff-section-row > .diff-col {
+  border-top: 1px solid #b1b4b6;
+}
+
+/* Unrecognised row: tint both cells */
+.diff-section-row--unrecognised > .diff-col {
+  background: #fafafa;
+}
+
+.diff-section-heading {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0b0c0c;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #b1b4b6;
+}
+
+.diff-unrecognised-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 25px;
+  padding: 12px 15px;
+  background: #fff7bf;
+  border-left: 4px solid #ffdd00;
+  color: #594d00;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.diff-unrecognised-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.diff-explanation {
+  margin-top: 12px;
+  font-size: 14px;
 }

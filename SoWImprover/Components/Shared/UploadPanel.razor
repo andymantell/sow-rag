@@ -1,7 +1,6 @@
 @inject GoodDefinition Definition
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
-@inject DiffService DiffService
 
 <!-- Upload toolbar -->
 <div class="app-toolbar">
@@ -25,6 +24,10 @@
             @if (_isImproving)
             {
                 <div class="app-spinner"></div>
+                @if (!string.IsNullOrEmpty(_progressMessage))
+                {
+                    <span class="app-progress-message">@_progressMessage</span>
+                }
             }
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
@@ -42,6 +45,7 @@
     private IBrowserFile? _selectedFile;
     private bool _isImproving;
     private string _errorMessage = "";
+    private string _progressMessage = "";
 
     private bool CanImprove => Definition.IsReady && _selectedFile != null && !_isImproving;
 
@@ -57,6 +61,7 @@
 
         _isImproving = true;
         _errorMessage = "";
+        _progressMessage = "";
         StateHasChanged();
 
         var tempPath = Path.Combine(Path.GetTempPath(), $"sow_{Guid.NewGuid():N}.pdf");
@@ -74,16 +79,13 @@
                 return;
             }
 
-            var result = await Improver.ImproveAsync(originalText, Definition);
-            var (normOriginal, normImproved) = DiffService.Prepare(result.Original, result.Improved);
-
-            await OnImproved.InvokeAsync(new ImprovementResult
+            var progress = new Progress<string>(msg =>
             {
-                Original = normOriginal,
-                Improved = normImproved,
-                Annotations = result.Annotations,
-                ChunksUsed = result.ChunksUsed
+                _progressMessage = msg;
+                InvokeAsync(StateHasChanged);
             });
+            var result = await Improver.ImproveAsync(originalText, Definition, progress);
+            await OnImproved.InvokeAsync(result);
         }
         catch (Exception ex)
         {
@@ -93,6 +95,7 @@
         {
             if (File.Exists(tempPath)) File.Delete(tempPath);
             _isImproving = false;
+            _progressMessage = "";
             StateHasChanged();
         }
     }

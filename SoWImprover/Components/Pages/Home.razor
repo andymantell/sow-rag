@@ -27,7 +27,7 @@
         }
         else
         {
-            <span>Generating definition…</span>
+            <span>@(string.IsNullOrEmpty(Definition.ProgressMessage) ? "Starting…" : Definition.ProgressMessage)</span>
         }
     </div>
 </div>

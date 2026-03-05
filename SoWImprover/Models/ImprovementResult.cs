@@ -3,35 +3,38 @@ namespace SoWImprover.Models;
 /// <summary>The result of improving an uploaded SoW document.</summary>
 public class ImprovementResult
 {
-    /// <summary>Normalised original text extracted from the uploaded PDF.</summary>
-    public string Original { get; init; } = "";
+    /// <summary>Per-section results, in document order.</summary>
+    public List<SectionResult> Sections { get; init; } = [];
 
-    /// <summary>Improved version of the document as a markdown string.</summary>
-    public string Improved { get; init; } = "";
-
-    /// <summary>Per-section annotations describing what was improved.</summary>
-    public List<SectionAnnotation> Annotations { get; init; } = [];
-
-    /// <summary>Deduplicated corpus chunks that were used as context during improvement.</summary>
+    /// <summary>Deduplicated corpus chunks used as retrieval context.</summary>
     public List<ChunkReference> ChunksUsed { get; init; } = [];
 }
 
-/// <summary>Describes what was improved in a single section of the document.</summary>
-public class SectionAnnotation
+/// <summary>Improvement result for a single section of the uploaded document.</summary>
+public class SectionResult
 {
-    /// <summary>The section heading as it appeared in the original document.</summary>
-    public string SectionTitle { get; init; } = "";
+    /// <summary>Heading as it appeared in the original document.</summary>
+    public string OriginalTitle { get; init; } = "";
 
-    /// <summary>Bullet-point explanation of the changes made (lines starting with '-').</summary>
-    public string Explanation { get; init; } = "";
+    /// <summary>Body text of the original section (without heading).</summary>
+    public string OriginalContent { get; init; } = "";
+
+    /// <summary>Improved body text. Null when the section was not recognised.</summary>
+    public string? ImprovedContent { get; init; }
+
+    /// <summary>The canonical section name this was matched to. Null if unrecognised.</summary>
+    public string? MatchedSection { get; init; }
+
+    /// <summary>True when no canonical match was found and the section was left unchanged.</summary>
+    public bool Unrecognised { get; init; }
+
+    /// <summary>Bullet-point explanation of changes made. Null when unrecognised.</summary>
+    public string? Explanation { get; init; }
 }
 
 /// <summary>A reference to a corpus chunk used as retrieval context.</summary>
 public class ChunkReference
 {
-    /// <summary>Filename of the source document this chunk came from.</summary>
     public string SourceFile { get; init; } = "";
-
-    /// <summary>Up to 200 characters of the chunk text.</summary>
     public string Snippet { get; init; } = "";
 }

@@ -1,41 +1,49 @@
 namespace SoWImprover.Models;
 
+/// <summary>A single canonical section with its definition-of-good content.</summary>
+public record DefinedSection(string Name, string Content);
+
 /// <summary>
 /// Singleton state container for the generated "definition of good" for SoW documents.
 /// Written once by <c>DefinitionGeneratorService</c> on a background thread;
 /// read by multiple Blazor circuit threads. <see cref="IsReady"/> uses a <c>volatile</c>
-/// backing field so readers see a consistent view: once <c>IsReady</c> returns <c>true</c>,
-/// <see cref="MarkdownContent"/>, <see cref="DocumentCount"/>, and <see cref="ChunkCount"/>
-/// are all guaranteed to hold their final values.
+/// backing field so readers see a consistent view.
 /// </summary>
 public class GoodDefinition
 {
-    // volatile ensures the IsReady write acts as a release fence, and reads act as acquire fences,
-    // so readers that see IsReady=true are guaranteed to see the prior non-volatile writes.
     private volatile bool _isReady;
 
-    /// <summary>The generated definition as a markdown string. Populated before <see cref="IsReady"/> is set.</summary>
+    /// <summary>Canonical sections discovered from the corpus, each with its definition content.</summary>
+    public IReadOnlyList<DefinedSection> Sections { get; private set; } = [];
+
+    /// <summary>Full definition assembled as markdown for sidebar display.</summary>
     public string MarkdownContent { get; private set; } = "";
+
+    /// <summary>Current progress message during generation. Updated freely from the background thread.</summary>
+    public string ProgressMessage { get; private set; } = "";
 
     /// <summary>Whether the definition has been fully generated and is safe to read.</summary>
     public bool IsReady => _isReady;
 
-    /// <summary>Number of source documents that were analysed to produce this definition.</summary>
+    /// <summary>Updates the progress message. Safe to call at any point before SetReady.</summary>
+    public void SetProgress(string message) => ProgressMessage = message;
+
+    /// <summary>Number of source documents analysed.</summary>
     public int DocumentCount { get; private set; }
 
-    /// <summary>Total number of corpus chunks loaded from source documents.</summary>
+    /// <summary>Total corpus chunks loaded.</summary>
     public int ChunkCount { get; private set; }
 
     /// <summary>
     /// Sets all properties and marks the definition as ready.
-    /// <see cref="IsReady"/> is set last, using volatile semantics, to ensure all prior
-    /// writes are visible to any thread that subsequently reads <see cref="IsReady"/>.
+    /// IsReady is set last (volatile write) to act as a release fence.
     /// </summary>
-    public void SetReady(string markdownContent, int documentCount, int chunkCount)
+    public void SetReady(IReadOnlyList<DefinedSection> sections, int documentCount, int chunkCount)
     {
-        MarkdownContent = markdownContent;
+        Sections = sections;
+        MarkdownContent = string.Join("\n\n", sections.Select(s => $"## {s.Name}\n\n{s.Content}"));
         DocumentCount = documentCount;
         ChunkCount = chunkCount;
-        _isReady = true; // volatile write — acts as release fence for the writes above
+        _isReady = true;
     }
 }

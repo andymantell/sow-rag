@@ -8,57 +8,7 @@
     }
     else
     {
-        @if (Result.Annotations.Count > 0)
-        {
-            <div class="app-annotations">
-                <details class="govuk-details" open>
-                    <summary class="govuk-details__summary">
-                        <span class="govuk-details__summary-text">What was improved</span>
-                    </summary>
-                    <div class="govuk-details__text">
-                        @foreach (var ann in Result.Annotations)
-                        {
-                            <div class="annotation-item">
-                                <div class="annotation-item__title">@ann.SectionTitle</div>
-                                @{
-                                    var bullets = ann.Explanation
-                                        .Split('\n')
-                                        .Select(l => l.Trim())
-                                        .Where(l => l.StartsWith("-"))
-                                        .Select(l => l[1..].Trim())
-                                        .ToList();
-                                }
-                                @if (bullets.Count > 0)
-                                {
-                                    <ul class="annotation-item__bullets">
-                                        @foreach (var b in bullets)
-                                        {
-                                            <li>@b</li>
-                                        }
-                                    </ul>
-                                }
-                                else
-                                {
-                                    <p>@ann.Explanation</p>
-                                }
-                            </div>
-                        }
-                    </div>
-                </details>
-            </div>
-        }
-
-        <div class="diff-panels">
-            <div class="diff-header-row">
-                <div class="diff-col-header">Original</div>
-                <div class="diff-col-header">Improved</div>
-            </div>
-            <div class="diff-cols">
-                <div class="diff-col">@_originalHtml</div>
-                <div class="diff-col">@_improvedHtml</div>
-            </div>
-        </div>
-
+        @* Sources collapsible *@
         @if (Result.ChunksUsed.Count > 0)
         {
             <div class="app-sources">
@@ -78,27 +28,77 @@
                 </details>
             </div>
         }
+
+        @* Column headers *@
+        <div class="diff-panels">
+            <div class="diff-header-row">
+                <div class="diff-col-header">Original</div>
+                <div class="diff-col-header">Improved</div>
+            </div>
+
+            @* One row per section *@
+            @foreach (var sec in Result.Sections)
+            {
+                <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "")">
+                    @* Left: original *@
+                    <div class="diff-col">
+                        <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                        @MarkdownRenderer.ToMarkupString(sec.OriginalContent)
+                    </div>
+
+                    @* Right: improved or unrecognised notice *@
+                    <div class="diff-col">
+                        @if (sec.Unrecognised)
+                        {
+                            <div class="diff-unrecognised-notice">
+                                <span class="diff-unrecognised-icon" aria-hidden="true">&#9888;</span>
+                                Section not recognised — no improvements made.
+                            </div>
+                        }
+                        else
+                        {
+                            <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                            @MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? "")
+                            @if (!string.IsNullOrWhiteSpace(sec.Explanation))
+                            {
+                                <details class="govuk-details diff-explanation">
+                                    <summary class="govuk-details__summary">
+                                        <span class="govuk-details__summary-text">What was improved</span>
+                                    </summary>
+                                    <div class="govuk-details__text">
+                                        @{
+                                            var bullets = sec.Explanation
+                                                .Split('\n')
+                                                .Select(l => l.Trim())
+                                                .Where(l => l.StartsWith("-"))
+                                                .Select(l => l[1..].Trim())
+                                                .ToList();
+                                        }
+                                        @if (bullets.Count > 0)
+                                        {
+                                            <ul class="annotation-item__bullets">
+                                                @foreach (var b in bullets)
+                                                {
+                                                    <li>@b</li>
+                                                }
+                                            </ul>
+                                        }
+                                        else
+                                        {
+                                            <p>@sec.Explanation</p>
+                                        }
+                                    </div>
+                                </details>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
     }
 
 </div>
 
 @code {
     [Parameter] public ImprovementResult? Result { get; set; }
-
-    private MarkupString _originalHtml;
-    private MarkupString _improvedHtml;
-
-    protected override void OnParametersSet()
-    {
-        if (Result is not null)
-        {
-            _originalHtml = MarkdownRenderer.ToMarkupString(Result.Original);
-            _improvedHtml = MarkdownRenderer.ToMarkupString(Result.Improved);
-        }
-        else
-        {
-            _originalHtml = default;
-            _improvedHtml = default;
-        }
-    }
 }

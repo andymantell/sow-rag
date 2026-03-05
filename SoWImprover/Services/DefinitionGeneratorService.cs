@@ -16,18 +16,15 @@ public class DefinitionGeneratorService(
 
         logger.LogInformation("Starting definition generation from folder: {Folder}", folder);
 
-        // Reuse texts already extracted during startup chunk-loading — avoids spawning a second
-        // Python subprocess per document.
         var documents = loader.GetCachedTexts();
 
         logger.LogInformation("Generating definition from {Count} document(s), {Chunks} chunks",
             documents.Count, retriever.ChunkCount);
 
-        // This will throw and crash the BackgroundService (and app) if any LLM call fails
-        var markdown = await builder.BuildDefinitionAsync(documents, ct);
+        var sections = await builder.BuildDefinitionAsync(documents, definition.SetProgress, ct);
 
-        definition.SetReady(markdown, retriever.DocumentCount, retriever.ChunkCount);
+        definition.SetReady(sections, retriever.DocumentCount, retriever.ChunkCount);
 
-        logger.LogInformation("Definition of good is ready ({Length} chars)", markdown.Length);
+        logger.LogInformation("Definition of good is ready ({Count} section(s))", sections.Count);
     }
 }
