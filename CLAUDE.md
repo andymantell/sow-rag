@@ -43,6 +43,7 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 ## Workflow Rules
 
+- **All code changes require tests** — every bug fix, feature, and behavioural change must include new or updated tests covering the change. Unit tests for logic/services, E2E tests for user-facing behaviour. Do not consider work complete until tests pass.
 - **Ask before refactoring** — when a fix involves replacing one approach with a different one (e.g. swapping embedding-based matching for string-based matching), stop and discuss the trade-offs with the user before implementing. Don't assume the simpler approach is acceptable.
 - **Favour framework-native patterns** — prefer Blazor collocated JS modules (`.razor.js`) over global scripts, `IDbContextFactory` over injected `DbContext`, etc.
 

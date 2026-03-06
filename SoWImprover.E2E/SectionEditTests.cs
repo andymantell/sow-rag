@@ -103,6 +103,89 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Improved text for editing.")).ToBeVisibleAsync();
     }
 
+    /// Verifies that after saving an edit, a version dropdown appears showing
+    /// both version 1 (original) and version 2 (the edit).
+    [Fact]
+    public async Task EditAndSave_ShowsVersionDropdown()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 15000 });
+
+        // Make an edit and save to create version 2
+        await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
+        await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
+        var editor = _page.Locator(".tiptap").First;
+        await editor.ClickAsync();
+        await _page.Keyboard.PressAsync("Control+a");
+        await _page.Keyboard.TypeAsync("Version 2 content");
+        await _page.Locator("button:has-text('Save')").ClickAsync();
+        await Expect(_page.Locator(".app-editor-toolbar")).Not.ToBeVisibleAsync();
+
+        // Version dropdown should now appear
+        var versionSelect = _page.Locator(".app-version-select");
+        await Expect(versionSelect).ToBeVisibleAsync(new() { Timeout = 5000 });
+
+        // Should have version 2 selected (current) and version 1 available
+        var options = await versionSelect.Locator("option").AllTextContentsAsync();
+        Assert.Contains(options, o => o.Contains("Version 2 (current)"));
+        Assert.Contains(options, o => o.Contains("Version 1"));
+        Assert.Equal(2, options.Count);
+    }
+
+    /// Verifies that selecting an older version from the dropdown shows a
+    /// "Restore this version" button and preview content.
+    [Fact]
+    public async Task VersionDropdown_SelectOldVersion_ShowsRestoreButton()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 15000 });
+
+        // Create version 2
+        await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
+        await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
+        var editor = _page.Locator(".tiptap").First;
+        await editor.ClickAsync();
+        await _page.Keyboard.PressAsync("Control+a");
+        await _page.Keyboard.TypeAsync("Version 2 for restore test");
+        await _page.Locator("button:has-text('Save')").ClickAsync();
+        await Expect(_page.Locator(".app-editor-toolbar")).Not.ToBeVisibleAsync();
+
+        // Select version 1 from dropdown
+        await _page.Locator(".app-version-select").SelectOptionAsync("1");
+
+        await Expect(_page.Locator("button:has-text('Restore this version')")).ToBeVisibleAsync(
+            new() { Timeout = 5000 });
+    }
+
+    /// Verifies that cancelling an edit with unsaved changes shows a browser
+    /// confirm dialog; dismissing it keeps the editor open.
+    [Fact]
+    public async Task EditAndCancelWithChanges_ShowsConfirmDialog()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 15000 });
+        await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
+        await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
+
+        // Make a change
+        var editor = _page.Locator(".tiptap").First;
+        await editor.ClickAsync();
+        await _page.Keyboard.TypeAsync("dirty change");
+
+        // Dismiss the confirm dialog (cancel the cancel)
+        _page.Dialog += (_, dialog) => dialog.DismissAsync();
+        await _page.Locator("button:has-text('Cancel')").ClickAsync();
+
+        // Editor should still be open because we dismissed the dialog
+        await Expect(_page.Locator(".app-editor-toolbar")).ToBeVisibleAsync();
+    }
+
     private async Task<Guid> SeedDocumentAsync()
     {
         var factory = _fixture.Services.GetRequiredService<IDbContextFactory<SoWDbContext>>();

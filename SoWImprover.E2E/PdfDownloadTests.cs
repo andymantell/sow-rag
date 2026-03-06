@@ -53,13 +53,47 @@ public class PdfDownloadTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         Assert.Equal((byte)'F', bytes[3]);
     }
 
+    /// Verifies that excluding a section before downloading produces a smaller
+    /// PDF than downloading with all sections included (proving the excluded
+    /// section's content is actually omitted).
+    [Fact]
+    public async Task DownloadAfterExclude_ProducesSmallerPdf()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Download with all sections
+        var fullDownload = await _page.RunAndWaitForDownloadAsync(async () =>
+        {
+            await _page.Locator("button:has-text('Download improved document')").ClickAsync();
+        }, new() { Timeout = 30000 });
+        var fullPath = await fullDownload.PathAsync();
+        var fullSize = new FileInfo(fullPath!).Length;
+
+        // Exclude a section
+        await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
+        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+
+        // Download again
+        var excludedDownload = await _page.RunAndWaitForDownloadAsync(async () =>
+        {
+            await _page.Locator("button:has-text('Download improved document')").ClickAsync();
+        }, new() { Timeout = 30000 });
+        var excludedPath = await excludedDownload.PathAsync();
+        var excludedSize = new FileInfo(excludedPath!).Length;
+
+        Assert.True(excludedSize < fullSize,
+            $"Expected excluded PDF ({excludedSize} bytes) to be smaller than full PDF ({fullSize} bytes)");
+    }
+
     private async Task<Guid> SeedDocumentAsync()
     {
         var factory = _fixture.Services.GetRequiredService<IDbContextFactory<SoWDbContext>>();
         await using var db = await factory.CreateDbContextAsync();
 
         var docId = Guid.NewGuid();
-        var sectionId = Guid.NewGuid();
+        var sectionAId = Guid.NewGuid();
+        var sectionBId = Guid.NewGuid();
 
         db.Documents.Add(new DocumentEntity
         {
@@ -71,20 +105,40 @@ public class PdfDownloadTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
             [
                 new SectionEntity
                 {
-                    Id = sectionId,
+                    Id = sectionAId,
                     SectionIndex = 0,
                     OriginalTitle = "Introduction",
-                    OriginalContent = "Original.",
-                    ImprovedContent = "Improved content for PDF export.",
+                    OriginalContent = "Original introduction.",
+                    ImprovedContent = "Improved content for PDF export section one.",
                     MatchedSection = "Scope of Work",
                     Versions =
                     [
                         new SectionVersionEntity
                         {
                             Id = Guid.NewGuid(),
-                            SectionId = sectionId,
+                            SectionId = sectionAId,
                             VersionNumber = 1,
-                            Content = "Improved content for PDF export.",
+                            Content = "Improved content for PDF export section one.",
+                            CreatedAt = DateTime.UtcNow
+                        }
+                    ]
+                },
+                new SectionEntity
+                {
+                    Id = sectionBId,
+                    SectionIndex = 1,
+                    OriginalTitle = "Scope of Work",
+                    OriginalContent = "Original scope content that is fairly lengthy to ensure the PDF size differs.",
+                    ImprovedContent = "Improved scope content that is fairly lengthy to ensure the PDF file size measurably differs when excluded.",
+                    MatchedSection = "Scope of Work",
+                    Versions =
+                    [
+                        new SectionVersionEntity
+                        {
+                            Id = Guid.NewGuid(),
+                            SectionId = sectionBId,
+                            VersionNumber = 1,
+                            Content = "Improved scope content that is fairly lengthy to ensure the PDF file size measurably differs when excluded.",
                             CreatedAt = DateTime.UtcNow
                         }
                     ]
@@ -106,4 +160,7 @@ public class PdfDownloadTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
             await db.SaveChangesAsync();
         }
     }
+
+    private static ILocatorAssertions Expect(ILocator locator) =>
+        Assertions.Expect(locator);
 }

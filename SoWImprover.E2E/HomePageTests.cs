@@ -71,6 +71,33 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Previous documents")).Not.ToBeVisibleAsync();
     }
 
+    /// Verifies that uploading a non-PDF file (text file renamed to .txt)
+    /// shows a file-type validation error and does not navigate away.
+    [Fact]
+    public async Task HomePage_UploadNonPdf_ShowsFileTypeError()
+    {
+        await _page.GotoAsync(_fixture.BaseUrl);
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        // Create a plain text file (not a valid PDF)
+        var fakePath = Path.Combine(Path.GetTempPath(), $"e2e-fake-{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(fakePath, "This is not a PDF.");
+        try
+        {
+            await _page.Locator("#file-input").SetInputFilesAsync(fakePath);
+            await _page.WaitForTimeoutAsync(500);
+            await _page.Locator("button:has-text('Improve document')").ClickAsync();
+
+            await Expect(_page.Locator("text=must be a PDF").First).ToBeVisibleAsync(
+                new() { Timeout = 10000 });
+            Assert.Equal(_fixture.BaseUrl + "/", _page.Url);
+        }
+        finally
+        {
+            File.Delete(fakePath);
+        }
+    }
+
     private static ILocatorAssertions Expect(ILocator locator) =>
         Assertions.Expect(locator);
 
