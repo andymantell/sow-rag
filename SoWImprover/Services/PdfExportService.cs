@@ -19,8 +19,6 @@ public static class PdfExportService
 
     public static byte[] Generate(ImprovementResult result, IReadOnlySet<int>? suppressedSections = null)
     {
-        QuestPDF.Settings.License = LicenseType.Community;
-
         return Document.Create(container =>
         {
             container.Page(page =>

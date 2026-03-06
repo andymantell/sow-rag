@@ -1,7 +1,7 @@
 @inject GoodDefinition Definition
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
-@inject SoWDbContext Db
+@inject IDbContextFactory<SoWDbContext> DbFactory
 @inject NavigationManager Nav
 @inject ILogger<UploadPanel> Logger
 
@@ -165,8 +165,9 @@
                     Suppressed = false
                 }).ToList()
             };
-            Db.Documents.Add(doc);
-            await Db.SaveChangesAsync();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.Documents.Add(doc);
+            await db.SaveChangesAsync();
 
             navigating = true;
             Nav.NavigateTo($"/results/{doc.Id}");

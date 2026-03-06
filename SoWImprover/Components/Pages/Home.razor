@@ -1,6 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
-@inject SoWDbContext Db
+@inject IDbContextFactory<SoWDbContext> DbFactory
 
 <div class="govuk-width-container">
     <main class="govuk-main-wrapper" id="main-content">
@@ -46,7 +46,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _documents = await Db.Documents
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _documents = await db.Documents
             .OrderByDescending(d => d.UploadedAt)
             .AsNoTracking()
             .ToListAsync();

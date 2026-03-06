@@ -105,17 +105,92 @@ dotnet run
 
 Open your browser at `http://localhost:5194` (or the URL shown in the console).
 
-> **Startup time:** On first run the app embeds all corpus chunks via Ollama (cached to `sample-sows/embeddings-cache.json` for subsequent runs), then makes one LLM call per document plus a synthesis call to build the definition of good. With phi-4 and 4 documents this takes 2–5 minutes.
+> **Startup time:** On first run the app embeds all corpus chunks via Ollama (cached to `sample-sows/embeddings-cache.json` for subsequent runs) and builds the definition of good via LLM (cached to `sample-sows/definition-cache.json`). With phi-4 and 4 documents this takes 2–5 minutes. Subsequent starts load from cache in seconds.
 
 > **Improvement time:** One LLM call per section sequentially. A 10-section SoW may take 5–15 minutes.
 
-### Clearing the embedding cache
+### Clearing caches
 
-If you add or remove PDFs from `sample-sows/`, delete the cache so it regenerates:
+If you add or remove PDFs from `sample-sows/`, the caches are automatically invalidated (fingerprint mismatch). To force regeneration manually:
 
 ```bash
 del SoWImprover\sample-sows\embeddings-cache.json
+del SoWImprover\sample-sows\definition-cache.json
 ```
+
+---
+
+## Features
+
+- **Upload & improve** — upload a SoW PDF and get an AI-improved version with section-by-section rewrites
+- **Side-by-side diff** — original and improved content shown side by side with "what changed" explanations
+- **Section suppression** — exclude individual sections from the output with one click
+- **PDF export** — download the improved document as a formatted PDF (respects suppressed sections)
+- **Document history** — previous uploads are persisted and accessible from the home page
+- **Definition of good** — sidebar shows the auto-generated quality standards used for improvement
+
+---
+
+## Database
+
+The app uses **SQLite** via Entity Framework Core for persistence. The database file `sow-improver.db` is created automatically on first run.
+
+### What's stored
+
+| Entity | Purpose |
+|---|---|
+| `DocumentEntity` | Uploaded document metadata (filename, original text, upload timestamp) |
+| `SectionEntity` | Per-section results (original, improved, explanation, suppressed flag) |
+
+### Schema management
+
+Currently uses `EnsureCreated()` at startup (suitable for PoC). For production, switch to EF Core migrations:
+
+```bash
+cd SoWImprover
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+```
+
+### Moving to PostgreSQL or SQL Server
+
+The app uses EF Core with `IDbContextFactory`, so switching database providers requires only two changes:
+
+**1. Swap the NuGet package:**
+
+```bash
+# PostgreSQL
+dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+
+# SQL Server
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+```
+
+**2. Update `Program.cs`:**
+
+```csharp
+// PostgreSQL
+builder.Services.AddDbContextFactory<SoWDbContext>(opts =>
+    opts.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+
+// SQL Server
+builder.Services.AddDbContextFactory<SoWDbContext>(opts =>
+    opts.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+```
+
+**3. Add a connection string to `appsettings.json`:**
+
+```json
+{
+  "ConnectionStrings": {
+    "Default": "Host=localhost;Database=sow_improver;Username=app;Password=secret"
+  }
+}
+```
+
+No changes to the `DbContext`, entities, or Blazor components are needed — EF Core abstracts the provider.
+
+> **Note:** Replace `EnsureCreated()` with proper EF Core migrations before going to production, as `EnsureCreated()` cannot update an existing schema.
 
 ---
 
@@ -150,12 +225,13 @@ export Foundry__CloudApiKey="your-key"
 
 ## Architecture
 
-- **Frontend:** Blazor Server (interactive components, no JS framework)
+- **Frontend:** Blazor Server (interactive components, GOV.UK Design System styling, no JS framework)
 - **PDF extraction:** Python subprocess using `pymupdf4llm` — produces clean markdown from PDFs
+- **PDF export:** QuestPDF (Community license) — server-side PDF generation with markdown table rendering
+- **Persistence:** SQLite via EF Core `IDbContextFactory` — documents and section results survive restarts
 - **Embeddings:** nomic-embed-text via Ollama (local) or Azure OpenAI (cloud) — cached to disk on first run
 - **Retrieval:** Semantic similarity (cosine) over nomic-embed-text vectors; top-k chunks per section
 - **Section matching:** Uploaded section titles matched to 15 canonical SoW sections by embedding similarity
 - **LLM inference:** Microsoft Foundry Local (local) or Azure AI Foundry (cloud); one call per section sequentially
-- **Definition of good:** Generated once at startup from the corpus; covers deliverables, milestones/acceptance criteria, payment terms, IP ownership, scope boundaries, risk/change control
-- **No database or vector store** — all state is in-memory; restart clears it (embedding cache persists on disk)
-- **Multi-user:** 2–5 concurrent users; definition is a shared singleton; each improvement request is stateless
+- **Definition of good:** Generated once at startup from the corpus (cached to disk); covers deliverables, milestones/acceptance criteria, payment terms, IP ownership, scope boundaries, risk/change control
+- **Multi-user:** 2–5 concurrent users; definition is a shared singleton; each circuit gets its own short-lived DbContext instances

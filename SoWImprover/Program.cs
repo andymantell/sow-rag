@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 using SoWImprover.Components;
 using SoWImprover.Data;
 using SoWImprover.Models;
@@ -22,20 +23,22 @@ builder.Services.AddSingleton<SoWImproverService>();
 builder.Services.AddHostedService<DefinitionGeneratorService>();
 
 // ── Database ────────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<SoWDbContext>(opts =>
+builder.Services.AddDbContextFactory<SoWDbContext>(opts =>
     opts.UseSqlite("Data Source=sow-improver.db"));
 
 // ── Blazor ───────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// ── QuestPDF ──────────────────────────────────────────────────────────────────
+QuestPDF.Settings.License = LicenseType.Community;
+
 // ── Build ────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
 // Auto-migrate database (PoC only — use proper migrations in production)
-using (var scope = app.Services.CreateScope())
+using (var db = app.Services.GetRequiredService<IDbContextFactory<SoWDbContext>>().CreateDbContext())
 {
-    var db = scope.ServiceProvider.GetRequiredService<SoWDbContext>();
     db.Database.EnsureCreated();
 }
 

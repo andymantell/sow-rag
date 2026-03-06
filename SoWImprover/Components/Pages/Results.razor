@@ -1,6 +1,6 @@
 @page "/results/{DocumentId:guid}"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
-@inject SoWDbContext Db
+@inject IDbContextFactory<SoWDbContext> DbFactory
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -34,7 +34,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _sections = await Db.Sections
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _sections = await db.Sections
             .Where(s => s.DocumentId == DocumentId)
             .OrderBy(s => s.SectionIndex)
             .ToListAsync();
@@ -73,13 +74,17 @@
     {
         if (_sections is null) return;
 
+        await using var db = await DbFactory.CreateDbContextAsync();
         foreach (var sec in _sections)
         {
             var shouldSuppress = _suppressed.Contains(sec.SectionIndex);
             if (sec.Suppressed != shouldSuppress)
+            {
                 sec.Suppressed = shouldSuppress;
+                db.Attach(sec).Property(s => s.Suppressed).IsModified = true;
+            }
         }
-        await Db.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     private async Task DownloadPdfAsync()
@@ -89,7 +94,8 @@
         _downloading = true;
         try
         {
-            var pdfBytes = await Task.Run(() => PdfExportService.Generate(_result, _suppressed));
+            var suppressedSnapshot = _suppressed.ToHashSet();
+            var pdfBytes = await Task.Run(() => PdfExportService.Generate(_result, suppressedSnapshot));
             var base64 = Convert.ToBase64String(pdfBytes);
             await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
         }
