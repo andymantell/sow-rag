@@ -11,11 +11,23 @@ namespace SoWImprover.Services;
 /// Sections are rendered with their original titles and improved body text.
 /// Unrecognised sections use the original content unchanged.
 /// </summary>
-public static class PdfExportService
+public static partial class PdfExportService
 {
     private const float FontSize = 10f;
     private const float HeadingSize = 13f;
     private const float CellPadding = 4f;
+
+    [GeneratedRegex(@"^(#{1,6})\s+(.+)$")]
+    private static partial Regex HeadingRegex();
+
+    [GeneratedRegex(@"^(\s*)([-•*]|\d+[.)]) (.+)$")]
+    private static partial Regex BulletRegex();
+
+    [GeneratedRegex(@"(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_)")]
+    private static partial Regex InlineMarkdownRegex();
+
+    [GeneratedRegex(@"^[\s\-:|]+$")]
+    private static partial Regex SeparatorRowRegex();
 
     public static byte[] Generate(ImprovementResult result, IReadOnlySet<int>? suppressedSections = null)
     {
@@ -117,7 +129,7 @@ public static class PdfExportService
         foreach (var rawLine in lines)
         {
             // Headings
-            var headingMatch = Regex.Match(rawLine, @"^(#{1,6})\s+(.+)$");
+            var headingMatch = HeadingRegex().Match(rawLine);
             if (headingMatch.Success)
             {
                 col.Item().DefaultTextStyle(x => x.Bold().FontSize(HeadingSize - 1))
@@ -126,7 +138,7 @@ public static class PdfExportService
             }
 
             // Bullet / list items
-            var bulletMatch = Regex.Match(rawLine, @"^(\s*)([-•*]|\d+[.)]) (.+)$");
+            var bulletMatch = BulletRegex().Match(rawLine);
             if (bulletMatch.Success)
             {
                 col.Item().PaddingLeft(10).Text(text =>
@@ -157,11 +169,9 @@ public static class PdfExportService
     /// </summary>
     private static void RenderInlineMarkdown(TextDescriptor text, string markdown)
     {
-        // Match ***bold italic***, **bold**, *italic*, and plain text segments
-        var pattern = @"(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_)";
         var lastIndex = 0;
 
-        foreach (Match m in Regex.Matches(markdown, pattern))
+        foreach (Match m in InlineMarkdownRegex().Matches(markdown))
         {
             // Plain text before this match
             if (m.Index > lastIndex)
@@ -242,7 +252,7 @@ public static class PdfExportService
     private static bool IsSeparatorRow(string line)
     {
         var trimmed = line.Trim().Trim('|');
-        return Regex.IsMatch(trimmed, @"^[\s\-:|]+$") && trimmed.Contains('-');
+        return SeparatorRowRegex().IsMatch(trimmed) && trimmed.Contains('-');
     }
 
     private static string[] ParseTableRow(string line)

@@ -26,9 +26,17 @@
     <script type="module">
         import { initAll } from '/govuk/govuk-frontend-6.1.0.min.js';
         initAll();
-        // Re-initialise GOV.UK Frontend components after each Blazor render,
-        // so dynamically rendered components (error summaries, banners, etc.) are enhanced.
-        document.addEventListener('blazor:afterupdate', () => initAll());
+        // Re-initialise GOV.UK Frontend components after Blazor DOM updates,
+        // so dynamically rendered components (error summaries, details, etc.) are enhanced.
+        // GOV.UK Frontend v5+ throws InitError on already-initialised components — safe to ignore.
+        let pending;
+        new MutationObserver(() => {
+            clearTimeout(pending);
+            pending = setTimeout(() => {
+                try { initAll(); } catch (e) { if (e.name !== 'InitError') throw e; }
+            }, 100);
+        }).observe(document.getElementById('main-content') ?? document.body,
+                   { childList: true, subtree: true });
     </script>
     <script src="_framework/blazor.web.js"></script>
 

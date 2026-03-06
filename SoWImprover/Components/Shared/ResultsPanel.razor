@@ -22,6 +22,7 @@
                 var sec = Result.Sections[sectionIndex];
                 var idx = sectionIndex;
                 var suppressed = SuppressedSections.Contains(idx);
+                // Unrecognised sections start with 0 versions (no LLM output); recognised start with 1
                 var hasEdits = sec.Unrecognised ? sec.VersionCount > 0 : sec.VersionCount > 1;
                 var isEditing = _editingIndex == idx;
                 var isPreviewing = PreviewSectionIndex == idx && PreviewContent is not null;
@@ -59,20 +60,20 @@
                             </div>
                             <div class="app-editor-toolbar" id="toolbar-@idx">
                                 <div class="toolbar-group">
-                                    <button data-cmd="toggleBold" title="Bold"><b>B</b></button>
-                                    <button data-cmd="toggleItalic" title="Italic"><i>I</i></button>
-                                    <button data-cmd="toggleHeading" title="Heading">H</button>
+                                    <button data-cmd="toggleBold" aria-label="Bold" title="Bold"><b>B</b></button>
+                                    <button data-cmd="toggleItalic" aria-label="Italic" title="Italic"><i>I</i></button>
+                                    <button data-cmd="toggleHeading" aria-label="Heading" title="Heading">H</button>
                                 </div>
                                 <div class="toolbar-group">
-                                    <button data-cmd="toggleBulletList" title="Bullet list">•</button>
-                                    <button data-cmd="toggleOrderedList" title="Numbered list">1.</button>
+                                    <button data-cmd="toggleBulletList" aria-label="Bullet list" title="Bullet list">•</button>
+                                    <button data-cmd="toggleOrderedList" aria-label="Numbered list" title="Numbered list">1.</button>
                                 </div>
                                 <div class="toolbar-group">
-                                    <button data-cmd="insertTable" title="Insert table">⊞</button>
-                                    <button data-cmd="addRowAfter" title="Add row">+Row</button>
-                                    <button data-cmd="deleteRow" title="Delete row">−Row</button>
-                                    <button data-cmd="addColumnAfter" title="Add column">+Col</button>
-                                    <button data-cmd="deleteColumn" title="Delete column">−Col</button>
+                                    <button data-cmd="insertTable" aria-label="Insert table" title="Insert table">⊞</button>
+                                    <button data-cmd="addRowAfter" aria-label="Add row" title="Add row">+Row</button>
+                                    <button data-cmd="deleteRow" aria-label="Delete row" title="Delete row">−Row</button>
+                                    <button data-cmd="addColumnAfter" aria-label="Add column" title="Add column">+Col</button>
+                                    <button data-cmd="deleteColumn" aria-label="Delete column" title="Delete column">−Col</button>
                                 </div>
                             </div>
                             <div class="app-editor-container">
@@ -88,8 +89,9 @@
                             @* ── View mode ── *@
                             <div class="diff-section-heading-row">
                                 <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                                <div style="display:flex;gap:6px;align-items:flex-start;">
+                                <div class="app-section-actions">
                                     <button class="govuk-button govuk-button--secondary app-section-btn"
+                                            disabled="@(_editorModule is null)"
                                             @onclick="() => StartEditing(idx)">
                                         Edit
                                     </button>
@@ -109,7 +111,7 @@
                                 <div class="app-version-switcher">
                                     <select class="govuk-select app-version-select"
                                             value="@selectedVersion"
-                                            @onchange="(e) => OnVersionSelectChanged(idx, int.Parse(e.Value!.ToString()!), currentVersion)">
+                                            @onchange="async (e) => { if (int.TryParse(e.Value?.ToString(), out var v)) await OnVersionSelectChanged(idx, v, currentVersion); }">
                                         @foreach (var v in versions.OrderByDescending(x => x.VersionNumber))
                                         {
                                             var label = v.VersionNumber == currentVersion
@@ -131,6 +133,7 @@
                             @* ── Content area ── *@
                             @if (isPreviewing)
                             {
+                                @* XSS safe: MarkdownRenderer uses Markdig .DisableHtml() *@
                                 @MarkdownRenderer.ToMarkupString(PreviewContent!)
                             }
                             else if (sec.Unrecognised)
@@ -211,8 +214,6 @@
     [Parameter] public int? PreviewVersionNumber { get; set; }
     [Parameter] public string? PreviewContent { get; set; }
 
-    public record SectionVersionInfo(int VersionNumber, DateTime CreatedAt);
-
     private record RenderedSection(
         MarkupString OriginalHtml,
         MarkupString ImprovedHtml,
@@ -228,8 +229,11 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             _editorModule = await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./Components/Shared/ResultsPanel.razor.js");
+            StateHasChanged();
+        }
     }
 
     protected override void OnParametersSet()
@@ -315,7 +319,15 @@
     private async Task CancelEdit(int index)
     {
         if (_editorModule is not null)
+        {
+            var dirty = await _editorModule.InvokeAsync<bool>("hasUnsavedChanges", $"editor-{index}");
+            if (dirty)
+            {
+                var confirmed = await JS.InvokeAsync<bool>("confirm", "You have unsaved changes. Discard them?");
+                if (!confirmed) return;
+            }
             await _editorModule.InvokeVoidAsync("destroyEditor", $"editor-{index}");
+        }
         _editingIndex = null;
     }
 

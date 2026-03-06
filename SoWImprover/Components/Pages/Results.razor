@@ -40,7 +40,7 @@
     private ImprovementResult? _result;
     private List<SectionEntity>? _sections;
     private readonly HashSet<int> _suppressed = [];
-    private Dictionary<int, List<ResultsPanel.SectionVersionInfo>> _versionHistory = [];
+    private Dictionary<int, List<SectionVersionInfo>> _versionHistory = [];
 
     // Version preview state
     private int? _previewSectionIndex;
@@ -83,7 +83,7 @@
             s => s.SectionIndex,
             s => s.Versions
                 .OrderBy(v => v.VersionNumber)
-                .Select(v => new ResultsPanel.SectionVersionInfo(v.VersionNumber, v.CreatedAt))
+                .Select(v => new SectionVersionInfo(v.VersionNumber, v.CreatedAt))
                 .ToList());
     }
 
@@ -123,7 +123,7 @@
 
         _versionHistory[args.SectionIndex] = section.Versions
             .OrderBy(v => v.VersionNumber)
-            .Select(v => new ResultsPanel.SectionVersionInfo(v.VersionNumber, v.CreatedAt))
+            .Select(v => new SectionVersionInfo(v.VersionNumber, v.CreatedAt))
             .ToList();
     }
 

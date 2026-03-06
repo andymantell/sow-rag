@@ -62,6 +62,13 @@ export function getMarkdown(elementId) {
     return editor.storage.markdown?.getMarkdown() ?? '';
 }
 
+export function hasUnsavedChanges(elementId) {
+    const editor = editors.get(elementId);
+    if (!editor) return false;
+    // Compare current doc to the initial content by checking undo history depth
+    return editor.can().undo();
+}
+
 export function destroyEditor(elementId) {
     const editor = editors.get(elementId);
     if (editor) {

@@ -252,6 +252,18 @@ del {
 .app-editor-toolbar button:active {
   background: #d4d4d4;
 }
+.app-editor-toolbar button:focus-visible {
+  outline: 3px solid #fd0;
+  outline-offset: 0;
+  z-index: 1;
+}
+
+/* ── Section action buttons (view mode) ──────────────────── */
+.app-section-actions {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
 
 /* ── Editor action buttons ───────────────────────────────── */
 .app-editor-actions {
