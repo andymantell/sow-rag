@@ -96,8 +96,7 @@
 
     private async Task HandleSectionEdited((int SectionIndex, string NewMarkdown) args)
     {
-        var section = _sections!.FirstOrDefault(s => s.SectionIndex == args.SectionIndex);
-        if (section is null) return;
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
         var nextVersion = section.Versions.Count > 0
             ? section.Versions.Max(v => v.VersionNumber) + 1
             : 1;
@@ -130,18 +129,16 @@
 
     private async Task HandleVersionRestored((int SectionIndex, int VersionNumber) args)
     {
-        var section = _sections!.FirstOrDefault(s => s.SectionIndex == args.SectionIndex);
-        if (section is null) return;
-        var sourceVersion = section.Versions.FirstOrDefault(v => v.VersionNumber == args.VersionNumber);
-        if (sourceVersion is null) return;
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
+        var sourceVersion = section.Versions.First(v => v.VersionNumber == args.VersionNumber);
         ClearPreview();
         await HandleSectionEdited((args.SectionIndex, sourceVersion.Content));
     }
 
     private void HandleVersionPreviewRequested((int SectionIndex, int VersionNumber) args)
     {
-        var section = _sections!.FirstOrDefault(s => s.SectionIndex == args.SectionIndex);
-        var version = section?.Versions.FirstOrDefault(v => v.VersionNumber == args.VersionNumber);
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
+        var version = section.Versions.FirstOrDefault(v => v.VersionNumber == args.VersionNumber);
         if (version is not null)
         {
             _previewSectionIndex = args.SectionIndex;
