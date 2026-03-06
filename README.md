@@ -120,6 +120,71 @@ del SoWImprover\sample-sows\definition-cache.json
 
 ---
 
+## Testing
+
+The project has two test suites: unit/integration tests and end-to-end browser tests.
+
+### Unit & integration tests
+
+```bash
+dotnet test SoWImprover.Tests/SoWImprover.Tests.csproj
+```
+
+These test services, models, and Blazor components in isolation using NSubstitute stubs and bUnit. No external dependencies (LLM, Ollama, Python, browser) are required — everything is stubbed or uses in-memory SQLite.
+
+**What's covered:**
+- Section splitting and heading detection (`SplitIntoSections`, `IsHeading`)
+- LLM output cleaning (`StripCodeFence`)
+- Document chunking and whitespace handling (`DocumentLoader.ChunkText`)
+- Embedding retrieval and cosine similarity (`EmbeddingRetriever`)
+- PDF export with markdown rendering, suppressed sections, and edge cases (`PdfExportService`)
+- Improvement pipeline: section matching, improvement, explanation, progress reporting, error handling (`SoWImproverService`)
+- Definition building: analyse/synthesise flow, code fence stripping, multi-document support (`DefinitionBuilder`)
+- Full pipeline integration: definition building → `GoodDefinition` ready → improve uploaded text
+- `GoodDefinition` model: state transitions, event firing, markdown generation
+- Blazor components: `DefinitionSidebar` (loading/ready states), `UploadPanel` (validation errors), `Home` (previous documents table)
+- App host smoke test: app starts and serves the home page
+
+### End-to-end browser tests
+
+```bash
+dotnet test SoWImprover.E2E/SoWImprover.E2E.csproj
+```
+
+These use Playwright to drive a real Chromium browser against the app running on Kestrel with stubbed services. Playwright browsers must be installed first:
+
+```bash
+dotnet build SoWImprover.E2E/SoWImprover.E2E.csproj
+node SoWImprover.E2E/bin/Debug/net8.0/.playwright/package/cli.js install --with-deps chromium
+```
+
+To run tests in headed mode (visible browser):
+
+```bash
+PLAYWRIGHT_HEADED=1 dotnet test SoWImprover.E2E/SoWImprover.E2E.csproj
+```
+
+**What's covered:**
+- Home page: upload form rendering, validation errors, definition sidebar, previous documents table
+- Upload flow: PDF upload → results page navigation, section rendering, document history
+- Results page: section headings, original/improved diff, "what changed" explanations, back link navigation, invalid document redirect
+- Section suppression: exclude/include toggle, persistence after reload
+- Inline editing: editor open/save/cancel, version dropdown, version restore, persistence after reload, unsaved changes confirmation dialog
+- PDF download: file download with correct filename and valid PDF bytes, excluded sections produce smaller output
+- Definition loading: submit blocked when definition not ready, error message shown
+
+### Using Make
+
+If `make` is available, shortcuts are provided:
+
+```bash
+make test              # unit & integration tests
+make e2e-test          # E2E tests (installs Playwright if needed)
+make e2e-test-headed   # E2E tests with visible browser
+```
+
+---
+
 ## Features
 
 - **Upload & improve** — upload a SoW PDF and get an AI-improved version with section-by-section rewrites
