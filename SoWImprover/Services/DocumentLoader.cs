@@ -97,7 +97,16 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
         process.ErrorDataReceived  += (_, e) => { if (e.Data is not null) error.AppendLine(e.Data); };
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        process.WaitForExit();
+
+        const int TimeoutMs = 60_000;
+        if (!process.WaitForExit(TimeoutMs))
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+            throw new InvalidOperationException(
+                $"PDF extraction timed out after {TimeoutMs / 1000} seconds. The PDF may be corrupt or very large.");
+        }
+        // Ensure all async output read callbacks have completed (bounded to the same timeout).
+        process.WaitForExit(TimeoutMs);
 
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
@@ -148,6 +157,11 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 
     internal List<DocumentChunk> ChunkText(string text, string sourceFile)
     {
+        var step = _chunkSize - _chunkOverlap;
+        if (step <= 0)
+            throw new InvalidOperationException(
+                $"Docs:ChunkSize ({_chunkSize}) must be greater than Docs:ChunkOverlap ({_chunkOverlap}).");
+
         var words = text.Split([' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries);
         var chunks = new List<DocumentChunk>();
         int i = 0, index = 0;
@@ -161,7 +175,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
                 Text = string.Join(" ", words, i, take),
                 ChunkIndex = index++
             });
-            i += _chunkSize - _chunkOverlap;
+            i += step;
         }
 
         return chunks;

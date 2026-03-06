@@ -197,26 +197,40 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
                 $"Could not reach Foundry Local service at {baseUrl}/v1/models: {ex.Message}", ex);
         }
 
-        using var doc = JsonDocument.Parse(json);
-        var ids = doc.RootElement.GetProperty("data")
-            .EnumerateArray()
-            .Select(m => m.GetProperty("id").GetString()!)
-            .ToList();
-
-        // Match: model ID starts with the alias (with optional separator), prefer GPU variants
-        var match = ids
-            .Where(id => id.StartsWith(alias, StringComparison.OrdinalIgnoreCase) ||
-                         id.StartsWith(alias.Replace("-", ""), StringComparison.OrdinalIgnoreCase))
-            .OrderBy(id => id.Contains("cpu", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
-            .FirstOrDefault();
-
-        if (match is null)
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException ex)
+        {
             throw new InvalidOperationException(
-                $"No loaded model matching '{alias}' found in Foundry Local service. " +
-                $"Available: {string.Join(", ", ids)}. " +
-                $"Download and load with: foundry model download {alias}");
+                $"Foundry Local service returned an unexpected response from {baseUrl}/v1/models. " +
+                $"Response (first 200 chars): {json[..Math.Min(200, json.Length)]}", ex);
+        }
 
-        return match;
+        using (doc)
+        {
+            var ids = doc.RootElement.GetProperty("data")
+                .EnumerateArray()
+                .Select(m => m.GetProperty("id").GetString()!)
+                .ToList();
+
+            // Match: model ID starts with the alias (with optional separator), prefer GPU variants
+            var match = ids
+                .Where(id => id.StartsWith(alias, StringComparison.OrdinalIgnoreCase) ||
+                             id.StartsWith(alias.Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+                .OrderBy(id => id.Contains("cpu", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                .FirstOrDefault();
+
+            if (match is null)
+                throw new InvalidOperationException(
+                    $"No loaded model matching '{alias}' found in Foundry Local service. " +
+                    $"Available: {string.Join(", ", ids)}. " +
+                    $"Download and load with: foundry model download {alias}");
+
+            return match;
+        }
     }
 
     private async Task<string> RunFoundryCliAsync(string args, CancellationToken ct)

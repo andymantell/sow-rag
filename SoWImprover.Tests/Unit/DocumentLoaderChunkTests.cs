@@ -68,4 +68,29 @@ public class DocumentLoaderChunkTests
         Assert.Single(chunks);
         Assert.Equal("word1 word2 word3 word4 word5", chunks[0].Text);
     }
+
+    [Fact]
+    public void ChunkText_ChunkOverlapEqualToChunkSize_Throws()
+    {
+        var loader = CreateLoader(chunkSize: 10, chunkOverlap: 10);
+        Assert.Throws<InvalidOperationException>(() => loader.ChunkText("word1 word2", "test.pdf"));
+    }
+
+    [Fact]
+    public void ChunkText_ChunkOverlapGreaterThanChunkSize_Throws()
+    {
+        var loader = CreateLoader(chunkSize: 5, chunkOverlap: 10);
+        Assert.Throws<InvalidOperationException>(() => loader.ChunkText("word1 word2", "test.pdf"));
+    }
+
+    [Fact]
+    public void ChunkText_ChunkOverlapZero_ProducesNonOverlappingChunks()
+    {
+        var loader = CreateLoader(chunkSize: 2, chunkOverlap: 0);
+        var chunks = loader.ChunkText("one two three four", "test.pdf");
+
+        Assert.Equal(2, chunks.Count);
+        Assert.Equal("one two", chunks[0].Text);
+        Assert.Equal("three four", chunks[1].Text);
+    }
 }
