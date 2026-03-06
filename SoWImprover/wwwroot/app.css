@@ -69,6 +69,30 @@
   margin-bottom: 0;
 }
 
+/* ── Section exclude/include button ──────────────────────── */
+.diff-section-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.diff-section-heading-row .diff-section-heading {
+  flex: 1;
+}
+.app-section-btn {
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
+  font-size: 14px;
+  padding: 6px 12px;
+}
+.diff-section-row--suppressed > .diff-col {
+  opacity: 0.5;
+}
+.app-suppressed-notice {
+  font-style: italic;
+  color: #505a5f;
+}
+
 /* ── Section-per-row diff layout ─────────────────────────── */
 .diff-panels {
   display: grid;
@@ -85,10 +109,7 @@
 }
 .diff-col-header {
   padding: 8px 15px;
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0b0c0c;
+  margin: 0;
 }
 .diff-col-header + .diff-col-header { border-left: 1px solid #b1b4b6; }
 

@@ -17,7 +17,7 @@
                     @(_downloading ? "Generating…" : "Download improved document")
                 </button>
             </div>
-            <ResultsPanel Result="ResultState.Current" />
+            <ResultsPanel Result="ResultState.Current" SuppressedSections="_suppressed" />
         }
     </main>
 </div>
@@ -25,6 +25,7 @@
 @code {
     private IJSObjectReference? _module;
     private bool _downloading;
+    private readonly HashSet<int> _suppressed = [];
 
     protected override void OnInitialized()
     {
@@ -46,7 +47,7 @@
         _downloading = true;
         try
         {
-            var pdfBytes = await Task.Run(() => PdfExportService.Generate(ResultState.Current));
+            var pdfBytes = await Task.Run(() => PdfExportService.Generate(ResultState.Current, _suppressed));
             var base64 = Convert.ToBase64String(pdfBytes);
             await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
         }

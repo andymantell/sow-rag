@@ -17,7 +17,7 @@ public static class PdfExportService
     private const float HeadingSize = 13f;
     private const float CellPadding = 4f;
 
-    public static byte[] Generate(ImprovementResult result)
+    public static byte[] Generate(ImprovementResult result, IReadOnlySet<int>? suppressedSections = null)
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -34,8 +34,10 @@ public static class PdfExportService
                 {
                     col.Spacing(6);
 
-                    foreach (var section in result.Sections)
+                    for (var i = 0; i < result.Sections.Count; i++)
                     {
+                        if (suppressedSections?.Contains(i) == true) continue;
+                        var section = result.Sections[i];
                         col.Item().Text(section.OriginalTitle)
                             .Bold().FontSize(HeadingSize);
 

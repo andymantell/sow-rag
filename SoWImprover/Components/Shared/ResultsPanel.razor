@@ -9,27 +9,52 @@
         @* Column headers *@
         <div class="diff-panels">
             <div class="diff-header-row">
-                <div class="diff-col-header">Original</div>
-                <div class="diff-col-header">Improved</div>
+                <h2 class="diff-col-header govuk-heading-m">Original</h2>
+                <h2 class="diff-col-header govuk-heading-m">Improved</h2>
             </div>
 
             @* One row per section *@
             @foreach (var (rendered, sectionIndex) in _rendered.Select((r, i) => (r, i)))
             {
                 var sec = Result.Sections[sectionIndex];
-                <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "")">
+                var idx = sectionIndex;
+                var suppressed = SuppressedSections.Contains(idx);
+
+                <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "") @(suppressed ? "diff-section-row--suppressed" : "")">
                     @* Left: original *@
                     <div class="diff-col">
                         <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                        @rendered.OriginalHtml
+                        @if (!suppressed)
+                        {
+                            @rendered.OriginalHtml
+                        }
                     </div>
 
                     @* Right: improved or unrecognised notice *@
                     <div class="diff-col">
-                        @if (sec.Unrecognised)
+                        @if (suppressed)
+                        {
+                            <div class="diff-section-heading-row">
+                                <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                                <button class="govuk-button govuk-button--secondary app-section-btn"
+                                        @onclick="() => ToggleSection(idx)">
+                                    Include section
+                                </button>
+                            </div>
+                            <p class="govuk-body app-suppressed-notice">
+                                Section excluded from output
+                            </p>
+                        }
+                        else if (sec.Unrecognised)
                         {
                             var unrecognisedId = $"nb-unrecognised-{sectionIndex}";
-                            <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                            <div class="diff-section-heading-row">
+                                <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                                <button class="govuk-button govuk-button--warning app-section-btn"
+                                        @onclick="() => ToggleSection(idx)">
+                                    Exclude section
+                                </button>
+                            </div>
                             <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
                                  role="region"
                                  aria-labelledby="@unrecognisedId"
@@ -45,7 +70,13 @@
                         }
                         else
                         {
-                            <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                            <div class="diff-section-heading-row">
+                                <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                                <button class="govuk-button govuk-button--warning app-section-btn"
+                                        @onclick="() => ToggleSection(idx)">
+                                    Exclude section
+                                </button>
+                            </div>
                             @if (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue)
                             {
                                 var bannerId = $"nb-{sectionIndex}";
@@ -88,6 +119,9 @@
 @code {
     [Parameter] public ImprovementResult? Result { get; set; }
 
+    /// <summary>Set of section indices excluded from output. Shared with parent for PDF generation.</summary>
+    [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
+
     private record RenderedSection(
         MarkupString OriginalHtml,
         MarkupString ImprovedHtml,
@@ -121,5 +155,11 @@
                 bullets,
                 explanationHtml);
         }).ToList() ?? [];
+    }
+
+    private void ToggleSection(int index)
+    {
+        if (!SuppressedSections.Remove(index))
+            SuppressedSections.Add(index);
     }
 }
