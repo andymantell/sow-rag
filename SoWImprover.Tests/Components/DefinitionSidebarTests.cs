@@ -7,7 +7,7 @@ using SoWImprover.Services;
 
 namespace SoWImprover.Tests.Components;
 
-public class DefinitionSidebarTests : TestContext
+public class DefinitionSidebarTests : BunitContext
 {
     [Fact]
     public void NotReady_ShowsLoadingSpinner()

@@ -11,7 +11,7 @@ using SoWImprover.Services;
 
 namespace SoWImprover.Tests.Components;
 
-public class UploadPanelTests : TestContext
+public class UploadPanelTests : BunitContext
 {
     private Microsoft.Data.Sqlite.SqliteConnection? _connection;
 

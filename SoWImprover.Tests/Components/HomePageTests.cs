@@ -12,7 +12,7 @@ using SoWImprover.Services;
 
 namespace SoWImprover.Tests.Components;
 
-public class HomePageTests : TestContext
+public class HomePageTests : BunitContext
 {
     private Microsoft.Data.Sqlite.SqliteConnection? _connection;
 
