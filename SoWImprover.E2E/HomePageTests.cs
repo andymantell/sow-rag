@@ -55,6 +55,7 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     public async Task HomePage_SubmitWithoutFile_ShowsError()
     {
         await _page.GotoAsync(_fixture.BaseUrl);
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await _page.Locator("button:has-text('Improve document')").ClickAsync();
 

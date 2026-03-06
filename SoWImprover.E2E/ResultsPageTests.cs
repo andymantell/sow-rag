@@ -35,9 +35,9 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.WaitForSelectorAsync(".diff-section-heading");
 
         var headings = _page.Locator(".diff-section-heading");
-        // Each section appears twice (left + right columns)
+        // 2 sections × 2 columns (left + right) = at least 4 headings
         await Expect(headings.First).ToBeVisibleAsync();
-        Assert.True(await headings.CountAsync() >= 2);
+        Assert.True(await headings.CountAsync() >= 4);
     }
 
     /// Verifies the side-by-side diff layout: original content appears in the
@@ -96,6 +96,9 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
 
         await _page.Locator("button:has-text('Include section')").First.ClickAsync();
         await Expect(_page.Locator("text=Section excluded from output")).Not.ToBeVisibleAsync();
+
+        // Section content should be restored
+        await Expect(_page.Locator("text=This is the improved intro.")).ToBeVisibleAsync();
     }
 
     /// Verifies the "Download improved document" button is present on the
@@ -143,6 +146,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
 
         await Expect(_page.Locator("text=What changed")).ToBeVisibleAsync();
         await Expect(_page.Locator("text=Improved clarity")).ToBeVisibleAsync();
+        // Matched section name should appear in the explanation banner
+        await Expect(_page.Locator("text=Scope of Work").First).ToBeVisibleAsync();
     }
 
     /// Verifies that navigating to a non-existent document ID redirects to

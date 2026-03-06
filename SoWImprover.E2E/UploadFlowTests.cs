@@ -98,11 +98,11 @@ public class UploadFlowTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=View results").First).ToBeVisibleAsync();
     }
 
-    /// Verifies that uploading a file with valid PDF magic bytes but that
-    /// yields no extractable text shows an appropriate error message instead
+    /// Verifies that uploading a file with a .pdf extension but invalid
+    /// content (not a real PDF) shows an appropriate error message instead
     /// of navigating to results.
     [Fact]
-    public async Task Upload_EmptyPdfText_ShowsExtractionError()
+    public async Task Upload_InvalidPdfContent_ShowsExtractionError()
     {
         // Create a fixture-compatible PDF whose stubbed extraction returns empty text.
         // We override the page-level route to intercept the specific upload and

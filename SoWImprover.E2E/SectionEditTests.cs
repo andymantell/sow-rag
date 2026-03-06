@@ -219,6 +219,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         // Original content from version 1 should now be displayed
         await Expect(_page.Locator("text=Improved text for editing.")).ToBeVisibleAsync(
             new() { Timeout = 5000 });
+        // Version 2 content should no longer be visible
+        await Expect(_page.Locator("text=Version 2 text for restore")).Not.ToBeVisibleAsync();
     }
 
     /// Verifies that cancelling an edit with unsaved changes shows a browser
@@ -239,7 +241,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.Keyboard.TypeAsync("dirty change");
 
         // Dismiss the confirm dialog (cancel the cancel)
-        _page.Dialog += (_, dialog) => dialog.DismissAsync();
+        _page.Dialog += async (_, dialog) => await dialog.DismissAsync();
         await _page.Locator("button:has-text('Cancel')").ClickAsync();
 
         // Editor should still be open because we dismissed the dialog
