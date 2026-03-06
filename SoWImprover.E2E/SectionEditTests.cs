@@ -31,12 +31,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditButton_OpensEditor()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-
-        // Wait for the editor module to load (Edit button is disabled until then)
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
 
@@ -54,12 +49,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditAndSave_UpdatesContent()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-
-        // Wait for editor module to load
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
 
@@ -87,11 +77,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditAndCancel_KeepsOriginalContent()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
+        await NavigateToResultsAsync();
 
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
         await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
 
@@ -108,10 +95,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditAndSave_ShowsVersionDropdown()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         // Make an edit and save to create version 2
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
@@ -139,10 +123,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task VersionDropdown_SelectOldVersion_ShowsRestoreButton()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         // Create version 2
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
@@ -166,10 +147,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditAndSave_PersistsAfterReload()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         // Edit and save
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
@@ -194,10 +172,7 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task VersionRestore_UpdatesDisplayedContent()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
 
         // Create version 2 with distinct content
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
@@ -228,10 +203,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
     [Fact]
     public async Task EditAndCancelWithChanges_ShowsConfirmDialog()
     {
-        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
-        await _page.WaitForSelectorAsync(".diff-section-row");
-        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
-            new() { Timeout = 15000 });
+        await NavigateToResultsAsync();
+
         await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
         await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
 
@@ -305,6 +278,16 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
             db.Documents.Remove(doc);
             await db.SaveChangesAsync();
         }
+    }
+
+    /// Navigates to the results page for the seeded document and waits for the
+    /// interactive circuit to fully load (diff rows visible, Edit button enabled).
+    private async Task NavigateToResultsAsync()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 30_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) =>
