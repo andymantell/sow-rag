@@ -176,7 +176,7 @@ public class SoWImproverServiceTests
 
         var definition = CreateReadyDefinition();
         var progressMessages = new List<string>();
-        var progress = new Progress<string>(msg => progressMessages.Add(msg));
+        var progress = new SyncProgress<string>(msg => progressMessages.Add(msg));
 
         await _service.ImproveAsync("Some body text.", definition, progress);
 
@@ -273,5 +273,14 @@ public class SoWImproverServiceTests
             [new DefinedSection("Scope of Work", "Define the scope clearly.")],
             retriever, 1, 1);
         return definition;
+    }
+
+    /// <summary>
+    /// IProgress that invokes the callback synchronously, unlike
+    /// <see cref="Progress{T}"/> which posts via SynchronizationContext.
+    /// </summary>
+    private sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 }
