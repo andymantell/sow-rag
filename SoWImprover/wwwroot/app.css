@@ -180,3 +180,94 @@ del {
   text-decoration: line-through;
   padding: 1px 2px;
 }
+
+/* ── Tiptap editor ───────────────────────────────────────── */
+.app-editor-container .ProseMirror {
+  border: 2px solid #0b0c0c;
+  border-top: 1px solid #b1b4b6;
+  border-radius: 0 0 4px 4px;
+  padding: 15px;
+  min-height: 150px;
+  outline: none;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.app-editor-container .ProseMirror:focus {
+  border-color: #fd0;
+  outline: 3px solid #fd0;
+  outline-offset: 0;
+}
+.app-editor-container .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 15px 0;
+}
+.app-editor-container .ProseMirror th,
+.app-editor-container .ProseMirror td {
+  border: 1px solid #b1b4b6;
+  padding: 8px;
+  text-align: left;
+}
+.app-editor-container .ProseMirror th {
+  background: #f3f2f1;
+  font-weight: 700;
+}
+
+/* ── Editor toolbar ──────────────────────────────────────── */
+.app-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0;
+  padding: 6px 8px;
+  background: #f3f2f1;
+  border: 2px solid #0b0c0c;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+}
+.app-editor-toolbar .toolbar-group {
+  display: flex;
+  gap: 1px;
+  background: #b1b4b6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.app-editor-toolbar button {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 10px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  min-width: 32px;
+  color: #0b0c0c;
+  transition: background 0.1s;
+}
+.app-editor-toolbar button:hover {
+  background: #e2e2e2;
+}
+.app-editor-toolbar button:active {
+  background: #d4d4d4;
+}
+
+/* ── Editor action buttons ───────────────────────────────── */
+.app-editor-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ── Version switcher ────────────────────────────────────── */
+.app-version-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.app-version-select {
+  max-width: 280px;
+}

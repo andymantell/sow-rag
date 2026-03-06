@@ -124,6 +124,8 @@ del SoWImprover\sample-sows\definition-cache.json
 
 - **Upload & improve** — upload a SoW PDF and get an AI-improved version with section-by-section rewrites
 - **Side-by-side diff** — original and improved content shown side by side with "what changed" explanations
+- **Inline editing** — edit improved sections with a WYSIWYG markdown editor (bold, italic, headings, lists, tables)
+- **Version history** — browse and restore previous versions of each section via inline version pills
 - **Section suppression** — exclude individual sections from the output with one click
 - **PDF export** — download the improved document as a formatted PDF (respects suppressed sections)
 - **Document history** — previous uploads are persisted and accessible from the home page
@@ -141,6 +143,7 @@ The app uses **SQLite** via Entity Framework Core for persistence. The database 
 |---|---|
 | `DocumentEntity` | Uploaded document metadata (filename, original text, upload timestamp) |
 | `SectionEntity` | Per-section results (original, improved, explanation, suppressed flag) |
+| `SectionVersionEntity` | Append-only edit history per section (version number, content, timestamp) |
 
 ### Schema management
 

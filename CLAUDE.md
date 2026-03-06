@@ -28,10 +28,13 @@ Models/
                                  # OnChanged event (fired by SetProgress + SetReady)
   DocumentEntity.cs              # Persisted document (Id, FileName, OriginalText, UploadedAt)
   SectionEntity.cs               # Persisted section (per-document, includes Suppressed flag)
+  SectionVersionEntity.cs        # Append-only version history per section
   ImprovementResult.cs           # In-memory DTO for section results
 Components/Pages/Home.razor      # Upload page + document history table
 Components/Pages/Results.razor   # Diff results page (prerender: false); PDF download + section suppression
 Components/Pages/Results.razor.js  # Collocated JS module for file download (no global scope)
+Components/Shared/ResultsPanel.razor.js  # Tiptap JS interop (createEditor, getMarkdown, toolbar commands)
+wwwroot/lib/tiptap/                      # Vendored Tiptap + ProseMirror ESM bundles (no CDN dependency)
 Components/Layout/MainLayout.razor  # GOV.UK layout; subscribes to GoodDefinition.OnChanged
 Components/Shared/               # DefinitionSidebar, UploadPanel, ResultsPanel
 sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
@@ -71,6 +74,10 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 **Per-section LLM prompts:** Use `$$"""..."""` raw strings (double-dollar) to allow literal `{` in JSON examples alongside `{{interpolations}}`.
 
 **PDF export:** QuestPDF Community license set once in `Program.cs`. `PdfExportService.Generate` is static and thread-safe. Callers must snapshot mutable state (e.g. `_suppressed.ToHashSet()`) before passing to `Task.Run`.
+
+**Tiptap editor:** Vendored ESM bundles in `wwwroot/lib/tiptap/` (downloaded from esm.sh, no CDN at runtime, no npm). Internal bare-specifier imports (e.g. `/@tiptap/pm@^2.7.0/state`) resolved via `<script type="importmap">` in `App.razor`. JS interop via collocated `ResultsPanel.razor.js`. Editor instances tracked by element ID in a JS `Map`. Uses `tiptap-markdown@0.8.10` (community, compatible with tiptap v2) for markdown round-trip.
+
+**Version history:** Append-only `SectionVersionEntity` table. Restoring old versions creates a new version (never overwrites). `SectionEntity.ImprovedContent` always reflects the latest version. Version data loaded via `Include(s => s.Versions)` in Results.razor. `SectionResult.ImprovedContent` is `{ get; set; }` (mutable) so ResultsPanel can update it after edits.
 
 **`RuntimeIdentifier = win-x64`** set in `.csproj` — app targets Windows only (Foundry Local CLI is Windows-only). `Microsoft.AI.Foundry.Local` and `UglyToad.PdfPig` NuGets have been removed (unused).
 

@@ -152,17 +152,31 @@
                 FileName = _selectedFile!.Name,
                 OriginalText = originalText,
                 UploadedAt = DateTime.UtcNow,
-                Sections = result.Sections.Select((s, i) => new SectionEntity
+                Sections = result.Sections.Select((s, i) =>
                 {
-                    Id = Guid.NewGuid(),
-                    SectionIndex = i,
-                    OriginalTitle = s.OriginalTitle,
-                    OriginalContent = s.OriginalContent,
-                    ImprovedContent = s.ImprovedContent,
-                    MatchedSection = s.MatchedSection,
-                    Explanation = s.Explanation,
-                    Unrecognised = s.Unrecognised,
-                    Suppressed = false
+                    var sectionId = Guid.NewGuid();
+                    return new SectionEntity
+                    {
+                        Id = sectionId,
+                        SectionIndex = i,
+                        OriginalTitle = s.OriginalTitle,
+                        OriginalContent = s.OriginalContent,
+                        ImprovedContent = s.ImprovedContent,
+                        MatchedSection = s.MatchedSection,
+                        Explanation = s.Explanation,
+                        Unrecognised = s.Unrecognised,
+                        Suppressed = false,
+                        Versions = s.ImprovedContent is not null
+                            ? [new SectionVersionEntity
+                            {
+                                Id = Guid.NewGuid(),
+                                SectionId = sectionId,
+                                VersionNumber = 1,
+                                Content = s.ImprovedContent,
+                                CreatedAt = DateTime.UtcNow
+                            }]
+                            : []
+                    };
                 }).ToList()
             };
             await using var db = await DbFactory.CreateDbContextAsync();

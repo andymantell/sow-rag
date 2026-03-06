@@ -14,4 +14,5 @@ public class SectionEntity
     public bool Suppressed { get; set; }
 
     public DocumentEntity Document { get; set; } = null!;
+    public List<SectionVersionEntity> Versions { get; set; } = [];
 }

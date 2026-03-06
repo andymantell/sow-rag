@@ -20,7 +20,7 @@ public class SectionResult
     public string OriginalContent { get; init; } = "";
 
     /// <summary>Improved body text. Null when the section was not recognised.</summary>
-    public string? ImprovedContent { get; init; }
+    public string? ImprovedContent { get; set; }
 
     /// <summary>The canonical section name this was matched to. Null if unrecognised.</summary>
     public string? MatchedSection { get; init; }
@@ -30,6 +30,9 @@ public class SectionResult
 
     /// <summary>Bullet-point explanation of changes made. Null when unrecognised.</summary>
     public string? Explanation { get; init; }
+
+    /// <summary>Number of versions that exist for this section. 0 if never improved.</summary>
+    public int VersionCount { get; set; }
 }
 
 /// <summary>A reference to a corpus chunk used as retrieval context.</summary>

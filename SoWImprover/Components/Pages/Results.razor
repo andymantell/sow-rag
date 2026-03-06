@@ -17,8 +17,17 @@
                     @(_downloading ? "Generating…" : "Download improved document")
                 </button>
             </div>
-            <ResultsPanel Result="_result" SuppressedSections="_suppressed"
-                          OnSuppressedChanged="SaveSuppressedAsync" />
+            <ResultsPanel Result="_result"
+                          SuppressedSections="_suppressed"
+                          OnSuppressedChanged="SaveSuppressedAsync"
+                          OnSectionEdited="HandleSectionEdited"
+                          OnVersionRestored="HandleVersionRestored"
+                          OnVersionPreviewRequested="HandleVersionPreviewRequested"
+                          OnPreviewCleared="ClearPreview"
+                          VersionHistory="_versionHistory"
+                          PreviewSectionIndex="_previewSectionIndex"
+                          PreviewVersionNumber="_previewVersionNumber"
+                          PreviewContent="@_previewContent" />
         }
     </main>
 </div>
@@ -31,12 +40,19 @@
     private ImprovementResult? _result;
     private List<SectionEntity>? _sections;
     private readonly HashSet<int> _suppressed = [];
+    private Dictionary<int, List<ResultsPanel.SectionVersionInfo>> _versionHistory = [];
+
+    // Version preview state
+    private int? _previewSectionIndex;
+    private int? _previewVersionNumber;
+    private string? _previewContent;
 
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _sections = await db.Sections
             .Where(s => s.DocumentId == DocumentId)
+            .Include(s => s.Versions)
             .OrderBy(s => s.SectionIndex)
             .ToListAsync();
 
@@ -55,12 +71,20 @@
                 ImprovedContent = s.ImprovedContent,
                 MatchedSection = s.MatchedSection,
                 Explanation = s.Explanation,
-                Unrecognised = s.Unrecognised
+                Unrecognised = s.Unrecognised,
+                VersionCount = s.Versions.Count
             }).ToList()
         };
 
         foreach (var s in _sections.Where(s => s.Suppressed))
             _suppressed.Add(s.SectionIndex);
+
+        _versionHistory = _sections.ToDictionary(
+            s => s.SectionIndex,
+            s => s.Versions
+                .OrderBy(v => v.VersionNumber)
+                .Select(v => new ResultsPanel.SectionVersionInfo(v.VersionNumber, v.CreatedAt))
+                .ToList());
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -68,6 +92,66 @@
         if (firstRender)
             _module = await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./Components/Pages/Results.razor.js");
+    }
+
+    private async Task HandleSectionEdited((int SectionIndex, string NewMarkdown) args)
+    {
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
+        var nextVersion = section.Versions.Count > 0
+            ? section.Versions.Max(v => v.VersionNumber) + 1
+            : 1;
+
+        var version = new SectionVersionEntity
+        {
+            Id = Guid.NewGuid(),
+            SectionId = section.Id,
+            VersionNumber = nextVersion,
+            Content = args.NewMarkdown,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        section.ImprovedContent = args.NewMarkdown;
+        section.Versions.Add(version);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.SectionVersions.Add(version);
+        db.Attach(section).Property(s => s.ImprovedContent).IsModified = true;
+        await db.SaveChangesAsync();
+
+        _result!.Sections[args.SectionIndex].ImprovedContent = args.NewMarkdown;
+        _result.Sections[args.SectionIndex].VersionCount = section.Versions.Count;
+
+        _versionHistory[args.SectionIndex] = section.Versions
+            .OrderBy(v => v.VersionNumber)
+            .Select(v => new ResultsPanel.SectionVersionInfo(v.VersionNumber, v.CreatedAt))
+            .ToList();
+    }
+
+    private async Task HandleVersionRestored((int SectionIndex, int VersionNumber) args)
+    {
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
+        var sourceVersion = section.Versions.First(v => v.VersionNumber == args.VersionNumber);
+        ClearPreview();
+        await HandleSectionEdited((args.SectionIndex, sourceVersion.Content));
+    }
+
+    private void HandleVersionPreviewRequested((int SectionIndex, int VersionNumber) args)
+    {
+        var section = _sections!.First(s => s.SectionIndex == args.SectionIndex);
+        var version = section.Versions.FirstOrDefault(v => v.VersionNumber == args.VersionNumber);
+        if (version is not null)
+        {
+            _previewSectionIndex = args.SectionIndex;
+            _previewVersionNumber = args.VersionNumber;
+            _previewContent = version.Content;
+        }
+    }
+
+    private void ClearPreview()
+    {
+        _previewSectionIndex = null;
+        _previewVersionNumber = null;
+        _previewContent = null;
     }
 
     private async Task SaveSuppressedAsync()

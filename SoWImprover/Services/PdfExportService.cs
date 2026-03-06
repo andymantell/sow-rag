@@ -113,9 +113,77 @@ public static class PdfExportService
     private static void FlushTextBlock(ColumnDescriptor col, List<string> lines)
     {
         if (lines.Count == 0) return;
-        var text = StripMarkdown(string.Join("\n", lines));
-        if (!string.IsNullOrWhiteSpace(text))
-            col.Item().Text(text).FontSize(FontSize);
+
+        foreach (var rawLine in lines)
+        {
+            // Headings
+            var headingMatch = Regex.Match(rawLine, @"^(#{1,6})\s+(.+)$");
+            if (headingMatch.Success)
+            {
+                col.Item().DefaultTextStyle(x => x.Bold().FontSize(HeadingSize - 1))
+                    .Text(text => RenderInlineMarkdown(text, headingMatch.Groups[2].Value));
+                continue;
+            }
+
+            // Bullet / list items
+            var bulletMatch = Regex.Match(rawLine, @"^(\s*)([-•*]|\d+[.)]) (.+)$");
+            if (bulletMatch.Success)
+            {
+                col.Item().PaddingLeft(10).Text(text =>
+                {
+                    text.DefaultTextStyle(x => x.FontSize(FontSize));
+                    text.Span("• ");
+                    RenderInlineMarkdown(text, bulletMatch.Groups[3].Value);
+                });
+                continue;
+            }
+
+            // Regular paragraph line
+            var trimmed = rawLine.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                col.Item().Text(text =>
+                {
+                    text.DefaultTextStyle(x => x.FontSize(FontSize));
+                    RenderInlineMarkdown(text, trimmed);
+                });
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parses inline markdown (bold, italic, bold+italic) and renders
+    /// styled spans into a QuestPDF text descriptor.
+    /// </summary>
+    private static void RenderInlineMarkdown(TextDescriptor text, string markdown)
+    {
+        // Match ***bold italic***, **bold**, *italic*, and plain text segments
+        var pattern = @"(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_)";
+        var lastIndex = 0;
+
+        foreach (Match m in Regex.Matches(markdown, pattern))
+        {
+            // Plain text before this match
+            if (m.Index > lastIndex)
+                text.Span(markdown[lastIndex..m.Index]);
+
+            if (m.Groups[2].Success)       // ***bold italic***
+                text.Span(m.Groups[2].Value).Bold().Italic();
+            else if (m.Groups[3].Success)  // **bold**
+                text.Span(m.Groups[3].Value).Bold();
+            else if (m.Groups[4].Success)  // *italic*
+                text.Span(m.Groups[4].Value).Italic();
+            else if (m.Groups[5].Success)  // __bold__
+                text.Span(m.Groups[5].Value).Bold();
+            else if (m.Groups[6].Success)  // _italic_
+                text.Span(m.Groups[6].Value).Italic();
+
+            lastIndex = m.Index + m.Length;
+        }
+
+        // Trailing plain text
+        if (lastIndex < markdown.Length)
+            text.Span(markdown[lastIndex..]);
     }
 
     /// <summary>
@@ -161,9 +229,11 @@ public static class PdfExportService
                         .Padding(CellPadding);
 
                     if (isHeader)
-                        cell.Text(StripInlineMarkdown(cellText)).FontSize(FontSize - 1).Bold();
+                        cell.DefaultTextStyle(x => x.FontSize(FontSize - 1).Bold())
+                            .Text(text => RenderInlineMarkdown(text, cellText));
                     else
-                        cell.Text(StripInlineMarkdown(cellText)).FontSize(FontSize - 1);
+                        cell.DefaultTextStyle(x => x.FontSize(FontSize - 1))
+                            .Text(text => RenderInlineMarkdown(text, cellText));
                 }
             }
         });
@@ -183,19 +253,4 @@ public static class PdfExportService
         return line.Split('|').Select(c => c.Trim()).ToArray();
     }
 
-    private static string StripMarkdown(string text)
-    {
-        text = Regex.Replace(text, @"^#{1,6}\s+", "", RegexOptions.Multiline);
-        text = StripInlineMarkdown(text);
-        text = Regex.Replace(text, @"^[-•]\s+", "• ", RegexOptions.Multiline);
-        return text.Trim();
-    }
-
-    private static string StripInlineMarkdown(string text)
-    {
-        text = text.Replace("**", "").Replace("__", "");
-        // Only strip * used as emphasis, not bullet markers
-        text = Regex.Replace(text, @"(?<=\S)\*|\*(?=\S)", "");
-        return text.Trim();
-    }
 }

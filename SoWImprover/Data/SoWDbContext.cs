@@ -7,6 +7,7 @@ public class SoWDbContext(DbContextOptions<SoWDbContext> options) : DbContext(op
 {
     public DbSet<DocumentEntity> Documents => Set<DocumentEntity>();
     public DbSet<SectionEntity> Sections => Set<SectionEntity>();
+    public DbSet<SectionVersionEntity> SectionVersions => Set<SectionVersionEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +24,16 @@ public class SoWDbContext(DbContextOptions<SoWDbContext> options) : DbContext(op
         {
             e.HasKey(s => s.Id);
             e.HasIndex(s => new { s.DocumentId, s.SectionIndex });
+        });
+
+        modelBuilder.Entity<SectionVersionEntity>(e =>
+        {
+            e.HasKey(v => v.Id);
+            e.HasIndex(v => new { v.SectionId, v.VersionNumber }).IsUnique();
+            e.HasOne(v => v.Section)
+                .WithMany(s => s.Versions)
+                .HasForeignKey(v => v.SectionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

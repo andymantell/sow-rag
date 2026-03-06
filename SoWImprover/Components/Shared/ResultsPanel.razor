@@ -1,3 +1,6 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
 <div class="app-diff-area">
 
     @if (Result is null)
@@ -19,6 +22,9 @@
                 var sec = Result.Sections[sectionIndex];
                 var idx = sectionIndex;
                 var suppressed = SuppressedSections.Contains(idx);
+                var hasEdits = sec.Unrecognised ? sec.VersionCount > 0 : sec.VersionCount > 1;
+                var isEditing = _editingIndex == idx;
+                var isPreviewing = PreviewSectionIndex == idx && PreviewContent is not null;
 
                 <div class="diff-section-row @(sec.Unrecognised ? "diff-section-row--unrecognised" : "") @(suppressed ? "diff-section-row--suppressed" : "")">
                     @* Left: original *@
@@ -30,7 +36,7 @@
                         }
                     </div>
 
-                    @* Right: improved or unrecognised notice *@
+                    @* Right: improved / edit / preview *@
                     <div class="diff-col">
                         @if (suppressed)
                         {
@@ -45,68 +51,144 @@
                                 Section excluded from output
                             </p>
                         }
-                        else if (sec.Unrecognised)
+                        else if (isEditing)
                         {
-                            var unrecognisedId = $"nb-unrecognised-{sectionIndex}";
+                            @* ── Edit mode ── *@
                             <div class="diff-section-heading-row">
                                 <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                                <button class="govuk-button govuk-button--warning app-section-btn"
-                                        @onclick="() => ToggleSection(idx)">
-                                    Exclude section
-                                </button>
                             </div>
-                            <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
-                                 role="region"
-                                 aria-labelledby="@unrecognisedId"
-                                 data-module="govuk-notification-banner">
-                                <div class="govuk-notification-banner__header">
-                                    <h2 class="govuk-notification-banner__title" id="@unrecognisedId">Section not recognised</h2>
+                            <div class="app-editor-toolbar" id="toolbar-@idx">
+                                <div class="toolbar-group">
+                                    <button data-cmd="toggleBold" title="Bold"><b>B</b></button>
+                                    <button data-cmd="toggleItalic" title="Italic"><i>I</i></button>
+                                    <button data-cmd="toggleHeading" title="Heading">H</button>
                                 </div>
-                                <div class="govuk-notification-banner__content">
-                                    <p class="govuk-body">This section could not be matched to the definition of good - no improvements have been made.</p>
+                                <div class="toolbar-group">
+                                    <button data-cmd="toggleBulletList" title="Bullet list">•</button>
+                                    <button data-cmd="toggleOrderedList" title="Numbered list">1.</button>
+                                </div>
+                                <div class="toolbar-group">
+                                    <button data-cmd="insertTable" title="Insert table">⊞</button>
+                                    <button data-cmd="addRowAfter" title="Add row">+Row</button>
+                                    <button data-cmd="deleteRow" title="Delete row">−Row</button>
+                                    <button data-cmd="addColumnAfter" title="Add column">+Col</button>
+                                    <button data-cmd="deleteColumn" title="Delete column">−Col</button>
                                 </div>
                             </div>
-                            @rendered.OriginalHtml
+                            <div class="app-editor-container">
+                                <div id="editor-@idx"></div>
+                            </div>
+                            <div class="app-editor-actions">
+                                <button class="govuk-button" @onclick="() => SaveEdit(idx)">Save</button>
+                                <button class="govuk-button govuk-button--secondary" @onclick="() => CancelEdit(idx)">Cancel</button>
+                            </div>
                         }
                         else
                         {
+                            @* ── View mode ── *@
                             <div class="diff-section-heading-row">
                                 <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                                <button class="govuk-button govuk-button--warning app-section-btn"
-                                        @onclick="() => ToggleSection(idx)">
-                                    Exclude section
-                                </button>
+                                <div style="display:flex;gap:6px;align-items:flex-start;">
+                                    <button class="govuk-button govuk-button--secondary app-section-btn"
+                                            @onclick="() => StartEditing(idx)">
+                                        Edit
+                                    </button>
+                                    <button class="govuk-button govuk-button--warning app-section-btn"
+                                            @onclick="() => ToggleSection(idx)">
+                                        Exclude section
+                                    </button>
+                                </div>
                             </div>
-                            @if (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue)
+
+                            @* ── Version switcher ── *@
+                            @if (VersionHistory.TryGetValue(idx, out var versions) && versions.Count > 1)
                             {
-                                var bannerId = $"nb-{sectionIndex}";
-                                <div class="govuk-notification-banner app-explanation-banner"
-                                     role="region"
-                                     aria-labelledby="@bannerId"
-                                     data-module="govuk-notification-banner">
-                                    <div class="govuk-notification-banner__header">
-                                        <h2 class="govuk-notification-banner__title" id="@bannerId">
-                                            What changed@(string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})")
-                                        </h2>
-                                    </div>
-                                    <div class="govuk-notification-banner__content">
-                                        @if (rendered.BulletHtml.Count > 0)
+                                var currentVersion = versions.Max(v => v.VersionNumber);
+                                var selectedVersion = (PreviewSectionIndex == idx && PreviewVersionNumber.HasValue)
+                                    ? PreviewVersionNumber.Value : currentVersion;
+                                <div class="app-version-switcher">
+                                    <select class="govuk-select app-version-select"
+                                            value="@selectedVersion"
+                                            @onchange="(e) => OnVersionSelectChanged(idx, int.Parse(e.Value!.ToString()!), currentVersion)">
+                                        @foreach (var v in versions.OrderByDescending(x => x.VersionNumber))
                                         {
-                                            <ul class="govuk-list govuk-list--bullet">
-                                                @foreach (var bullet in rendered.BulletHtml)
-                                                {
-                                                    <li>@bullet</li>
-                                                }
-                                            </ul>
+                                            var label = v.VersionNumber == currentVersion
+                                                ? $"Version {v.VersionNumber} (current)"
+                                                : $"Version {v.VersionNumber} — {v.CreatedAt:d MMM yyyy HH:mm}";
+                                            <option value="@v.VersionNumber">@label</option>
                                         }
-                                        else if (rendered.ExplanationHtml.HasValue)
-                                        {
-                                            <p class="govuk-body">@rendered.ExplanationHtml.Value</p>
-                                        }
-                                    </div>
+                                    </select>
+                                    @if (isPreviewing)
+                                    {
+                                        <button class="govuk-button govuk-button--secondary app-section-btn"
+                                                @onclick="() => OnVersionRestored.InvokeAsync((idx, PreviewVersionNumber!.Value))">
+                                            Restore this version
+                                        </button>
+                                    }
                                 </div>
                             }
-                            @rendered.ImprovedHtml
+
+                            @* ── Content area ── *@
+                            @if (isPreviewing)
+                            {
+                                @MarkdownRenderer.ToMarkupString(PreviewContent!)
+                            }
+                            else if (sec.Unrecognised)
+                            {
+                                @if (!hasEdits)
+                                {
+                                    var unrecognisedId = $"nb-unrecognised-{sectionIndex}";
+                                    <div class="govuk-notification-banner govuk-notification-banner--warning app-explanation-banner"
+                                         role="region"
+                                         aria-labelledby="@unrecognisedId"
+                                         data-module="govuk-notification-banner">
+                                        <div class="govuk-notification-banner__header">
+                                            <h2 class="govuk-notification-banner__title" id="@unrecognisedId">Section not recognised</h2>
+                                        </div>
+                                        <div class="govuk-notification-banner__content">
+                                            <p class="govuk-body">This section could not be matched to the definition of good - no improvements have been made.</p>
+                                        </div>
+                                    </div>
+                                }
+                                @if (hasEdits)
+                                {
+                                    @rendered.ImprovedHtml
+                                }
+                                else
+                                {
+                                    @rendered.OriginalHtml
+                                }
+                            }
+                            else
+                            {
+                                @* ── What-changed banner ── *@
+                                @if (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue)
+                                {
+                                    var summaryText = "What changed" + (string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})");
+
+                                    <details class="govuk-details" data-module="govuk-details" @(hasEdits ? "" : "open")>
+                                        <summary class="govuk-details__summary">
+                                            <span class="govuk-details__summary-text">@summaryText</span>
+                                        </summary>
+                                        <div class="govuk-details__text">
+                                            @if (rendered.BulletHtml.Count > 0)
+                                            {
+                                                <ul class="govuk-list govuk-list--bullet">
+                                                    @foreach (var bullet in rendered.BulletHtml)
+                                                    {
+                                                        <li>@bullet</li>
+                                                    }
+                                                </ul>
+                                            }
+                                            else if (rendered.ExplanationHtml.HasValue)
+                                            {
+                                                <p class="govuk-body">@rendered.ExplanationHtml.Value</p>
+                                            }
+                                        </div>
+                                    </details>
+                                }
+                                @rendered.ImprovedHtml
+                            }
                         }
                     </div>
                 </div>
@@ -118,11 +200,18 @@
 
 @code {
     [Parameter] public ImprovementResult? Result { get; set; }
-
-    /// <summary>Set of section indices excluded from output. Shared with parent for PDF generation.</summary>
     [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
-
     [Parameter] public EventCallback OnSuppressedChanged { get; set; }
+    [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
+    [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionRestored { get; set; }
+    [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionPreviewRequested { get; set; }
+    [Parameter] public EventCallback OnPreviewCleared { get; set; }
+    [Parameter] public Dictionary<int, List<SectionVersionInfo>> VersionHistory { get; set; } = [];
+    [Parameter] public int? PreviewSectionIndex { get; set; }
+    [Parameter] public int? PreviewVersionNumber { get; set; }
+    [Parameter] public string? PreviewContent { get; set; }
+
+    public record SectionVersionInfo(int VersionNumber, DateTime CreatedAt);
 
     private record RenderedSection(
         MarkupString OriginalHtml,
@@ -132,31 +221,102 @@
 
     private ImprovementResult? _lastResult;
     private List<RenderedSection> _rendered = [];
+    private List<string?> _renderedContent = [];
+    private int? _editingIndex;
+    private IJSObjectReference? _editorModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _editorModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./Components/Shared/ResultsPanel.razor.js");
+    }
 
     protected override void OnParametersSet()
     {
-        if (Result == _lastResult) return;
-        _lastResult = Result;
+        if (Result is null) { _rendered = []; _renderedContent = []; return; }
 
-        _rendered = Result?.Sections.Select(sec =>
+        if (Result != _lastResult)
         {
-            var bullets = (sec.Explanation ?? "")
-                .Split('\n')
-                .Select(l => l.Trim())
-                .Where(l => l.StartsWith("-"))
-                .Select(l => MarkdownRenderer.ToInlineMarkupString(l[1..].Trim()))
-                .ToList();
+            _lastResult = Result;
+            _rendered = Result.Sections.Select(RenderSection).ToList();
+            _renderedContent = Result.Sections.Select(s => s.ImprovedContent).ToList();
+        }
+        else
+        {
+            // Re-render any sections whose content changed in-place (e.g. after restore)
+            for (var i = 0; i < Result.Sections.Count; i++)
+            {
+                if (Result.Sections[i].ImprovedContent != _renderedContent[i])
+                {
+                    _rendered[i] = RenderSection(Result.Sections[i]);
+                    _renderedContent[i] = Result.Sections[i].ImprovedContent;
+                }
+            }
+        }
+    }
 
-            MarkupString? explanationHtml = bullets.Count == 0 && !string.IsNullOrWhiteSpace(sec.Explanation)
-                ? MarkdownRenderer.ToInlineMarkupString(sec.Explanation)
-                : null;
+    private RenderedSection RenderSection(SectionResult sec)
+    {
+        var bullets = (sec.Explanation ?? "")
+            .Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("-"))
+            .Select(l => MarkdownRenderer.ToInlineMarkupString(l[1..].Trim()))
+            .ToList();
 
-            return new RenderedSection(
-                MarkdownRenderer.ToMarkupString(sec.OriginalContent),
-                MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? ""),
-                bullets,
-                explanationHtml);
-        }).ToList() ?? [];
+        MarkupString? explanationHtml = bullets.Count == 0 && !string.IsNullOrWhiteSpace(sec.Explanation)
+            ? MarkdownRenderer.ToInlineMarkupString(sec.Explanation)
+            : null;
+
+        return new RenderedSection(
+            MarkdownRenderer.ToMarkupString(sec.OriginalContent),
+            MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? ""),
+            bullets,
+            explanationHtml);
+    }
+
+    private void UpdateRenderedSection(int index)
+    {
+        _rendered[index] = RenderSection(Result!.Sections[index]);
+    }
+
+    private async Task StartEditing(int index)
+    {
+        _editingIndex = index;
+        await OnPreviewCleared.InvokeAsync();
+        StateHasChanged();
+
+        await Task.Yield();
+        if (_editorModule is not null)
+        {
+            var sec = Result!.Sections[index];
+            var markdown = sec.ImprovedContent ?? sec.OriginalContent;
+            await _editorModule.InvokeAsync<bool>("createEditor", $"editor-{index}", markdown);
+        }
+    }
+
+    private async Task SaveEdit(int index)
+    {
+        if (_editorModule is null) return;
+
+        var markdown = await _editorModule.InvokeAsync<string>("getMarkdown", $"editor-{index}");
+        await _editorModule.InvokeVoidAsync("destroyEditor", $"editor-{index}");
+        _editingIndex = null;
+
+        if (markdown is not null)
+        {
+            Result!.Sections[index].ImprovedContent = markdown;
+            UpdateRenderedSection(index);
+            await OnSectionEdited.InvokeAsync((index, markdown));
+        }
+    }
+
+    private async Task CancelEdit(int index)
+    {
+        if (_editorModule is not null)
+            await _editorModule.InvokeVoidAsync("destroyEditor", $"editor-{index}");
+        _editingIndex = null;
     }
 
     private async Task ToggleSection(int index)
@@ -164,5 +324,22 @@
         if (!SuppressedSections.Remove(index))
             SuppressedSections.Add(index);
         await OnSuppressedChanged.InvokeAsync();
+    }
+
+    private async Task OnVersionSelectChanged(int sectionIndex, int versionNumber, int currentVersion)
+    {
+        if (versionNumber == currentVersion)
+            await OnPreviewCleared.InvokeAsync();
+        else
+            await OnVersionPreviewRequested.InvokeAsync((sectionIndex, versionNumber));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_editorModule is not null)
+        {
+            try { await _editorModule.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
     }
 }
