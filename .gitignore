@@ -1,2 +1,5 @@
 obj
 bin
+sow-improver.db
+sow-improver.db-shm
+sow-improver.db-wal

@@ -1,7 +1,7 @@
 @inject GoodDefinition Definition
 @inject DocumentLoader DocumentLoader
 @inject SoWImproverService Improver
-@inject ResultState ResultState
+@inject SoWDbContext Db
 @inject NavigationManager Nav
 @inject ILogger<UploadPanel> Logger
 
@@ -146,10 +146,30 @@
             });
             var result = await Improver.ImproveAsync(originalText, Definition, progress);
 
-            // Set state and navigate before finally runs — avoids a StateHasChanged/NavigateTo race
-            ResultState.Current = result;
+            var doc = new DocumentEntity
+            {
+                Id = Guid.NewGuid(),
+                FileName = _selectedFile!.Name,
+                OriginalText = originalText,
+                UploadedAt = DateTime.UtcNow,
+                Sections = result.Sections.Select((s, i) => new SectionEntity
+                {
+                    Id = Guid.NewGuid(),
+                    SectionIndex = i,
+                    OriginalTitle = s.OriginalTitle,
+                    OriginalContent = s.OriginalContent,
+                    ImprovedContent = s.ImprovedContent,
+                    MatchedSection = s.MatchedSection,
+                    Explanation = s.Explanation,
+                    Unrecognised = s.Unrecognised,
+                    Suppressed = false
+                }).ToList()
+            };
+            Db.Documents.Add(doc);
+            await Db.SaveChangesAsync();
+
             navigating = true;
-            Nav.NavigateTo("/results");
+            Nav.NavigateTo($"/results/{doc.Id}");
         }
         catch (NavigationException)
         {

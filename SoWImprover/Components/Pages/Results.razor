@@ -1,13 +1,13 @@
-@page "/results"
+@page "/results/{DocumentId:guid}"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
-@inject ResultState ResultState
+@inject SoWDbContext Db
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 <div class="govuk-width-container">
     <main class="govuk-main-wrapper" id="main-content">
-        @if (ResultState.Current is not null)
+        @if (_result is not null)
         {
             <div class="app-results-toolbar">
                 <a href="/" class="govuk-back-link">Back</a>
@@ -17,20 +17,49 @@
                     @(_downloading ? "Generating…" : "Download improved document")
                 </button>
             </div>
-            <ResultsPanel Result="ResultState.Current" SuppressedSections="_suppressed" />
+            <ResultsPanel Result="_result" SuppressedSections="_suppressed"
+                          OnSuppressedChanged="SaveSuppressedAsync" />
         }
     </main>
 </div>
 
 @code {
+    [Parameter] public Guid DocumentId { get; set; }
+
     private IJSObjectReference? _module;
     private bool _downloading;
+    private ImprovementResult? _result;
+    private List<SectionEntity>? _sections;
     private readonly HashSet<int> _suppressed = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        if (ResultState.Current is null)
+        _sections = await Db.Sections
+            .Where(s => s.DocumentId == DocumentId)
+            .OrderBy(s => s.SectionIndex)
+            .ToListAsync();
+
+        if (_sections.Count == 0)
+        {
             Nav.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _result = new ImprovementResult
+        {
+            Sections = _sections.Select(s => new SectionResult
+            {
+                OriginalTitle = s.OriginalTitle,
+                OriginalContent = s.OriginalContent,
+                ImprovedContent = s.ImprovedContent,
+                MatchedSection = s.MatchedSection,
+                Explanation = s.Explanation,
+                Unrecognised = s.Unrecognised
+            }).ToList()
+        };
+
+        foreach (var s in _sections.Where(s => s.Suppressed))
+            _suppressed.Add(s.SectionIndex);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -40,14 +69,27 @@
                 "import", "./Components/Pages/Results.razor.js");
     }
 
+    private async Task SaveSuppressedAsync()
+    {
+        if (_sections is null) return;
+
+        foreach (var sec in _sections)
+        {
+            var shouldSuppress = _suppressed.Contains(sec.SectionIndex);
+            if (sec.Suppressed != shouldSuppress)
+                sec.Suppressed = shouldSuppress;
+        }
+        await Db.SaveChangesAsync();
+    }
+
     private async Task DownloadPdfAsync()
     {
-        if (ResultState.Current is null || _module is null) return;
+        if (_result is null || _module is null) return;
 
         _downloading = true;
         try
         {
-            var pdfBytes = await Task.Run(() => PdfExportService.Generate(ResultState.Current, _suppressed));
+            var pdfBytes = await Task.Run(() => PdfExportService.Generate(_result, _suppressed));
             var base64 = Convert.ToBase64String(pdfBytes);
             await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
         }

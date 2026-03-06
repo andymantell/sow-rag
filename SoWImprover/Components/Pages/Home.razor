@@ -1,6 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
-@inject ResultState ResultState
+@inject SoWDbContext Db
 
 <div class="govuk-width-container">
     <main class="govuk-main-wrapper" id="main-content">
@@ -11,9 +11,44 @@
         <DefinitionSidebar />
         <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
         <UploadPanel />
+
+        @if (_documents.Count > 0)
+        {
+            <hr class="govuk-section-break govuk-section-break--l govuk-section-break--visible">
+            <h2 class="govuk-heading-m">Previous documents</h2>
+            <table class="govuk-table">
+                <thead class="govuk-table__head">
+                    <tr class="govuk-table__row">
+                        <th class="govuk-table__header" scope="col">Document</th>
+                        <th class="govuk-table__header" scope="col">Uploaded</th>
+                        <th class="govuk-table__header" scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody class="govuk-table__body">
+                    @foreach (var doc in _documents)
+                    {
+                        <tr class="govuk-table__row">
+                            <td class="govuk-table__cell">@doc.FileName</td>
+                            <td class="govuk-table__cell">@doc.UploadedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
+                            <td class="govuk-table__cell">
+                                <a href="/results/@doc.Id" class="govuk-link">View results</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     </main>
 </div>
 
 @code {
-    protected override void OnInitialized() => ResultState.Current = null;
+    private List<DocumentEntity> _documents = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _documents = await Db.Documents
+            .OrderByDescending(d => d.UploadedAt)
+            .AsNoTracking()
+            .ToListAsync();
+    }
 }

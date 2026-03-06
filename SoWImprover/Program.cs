@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using SoWImprover.Components;
+using SoWImprover.Data;
 using SoWImprover.Models;
 using SoWImprover.Services;
 
@@ -7,9 +9,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Crash the host if the startup background service fails (definition generation)
 builder.Services.Configure<HostOptions>(o =>
     o.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost);
-
-// ── Scoped (per Blazor circuit / user session) ───────────────────────────────
-builder.Services.AddScoped<ResultState>();
 
 // ── Singletons ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GoodDefinition>();
@@ -22,12 +21,23 @@ builder.Services.AddSingleton<SoWImproverService>();
 // BackgroundService: generates the definition of good at startup
 builder.Services.AddHostedService<DefinitionGeneratorService>();
 
+// ── Database ────────────────────────────────────────────────────────────────
+builder.Services.AddDbContext<SoWDbContext>(opts =>
+    opts.UseSqlite("Data Source=sow-improver.db"));
+
 // ── Blazor ───────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // ── Build ────────────────────────────────────────────────────────────────────
 var app = builder.Build();
+
+// Auto-migrate database (PoC only — use proper migrations in production)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<SoWDbContext>();
+    db.Database.EnsureCreated();
+}
 
 app.UseStaticFiles();
 app.UseAntiforgery();
