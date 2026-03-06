@@ -5,10 +5,10 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-@if (ResultState.Current is not null)
-{
-    <div class="govuk-width-container">
-        <main class="govuk-main-wrapper" id="main-content">
+<div class="govuk-width-container">
+    <main class="govuk-main-wrapper" id="main-content">
+        @if (ResultState.Current is not null)
+        {
             <div class="app-results-toolbar">
                 <a href="/" class="govuk-back-link">Back</a>
                 <button class="govuk-button govuk-button--secondary"
@@ -18,9 +18,9 @@
                 </button>
             </div>
             <ResultsPanel Result="ResultState.Current" />
-        </main>
-    </div>
-}
+        }
+    </main>
+</div>
 
 @code {
     private IJSObjectReference? _module;
