@@ -241,7 +241,11 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.Keyboard.TypeAsync("dirty change");
 
         // Dismiss the confirm dialog (cancel the cancel)
-        _page.Dialog += async (_, dialog) => await dialog.DismissAsync();
+        _page.Dialog += async (_, dialog) =>
+        {
+            try { await dialog.DismissAsync(); }
+            catch (PlaywrightException) { /* page may close during teardown */ }
+        };
         await _page.Locator("button:has-text('Cancel')").ClickAsync();
 
         // Editor should still be open because we dismissed the dialog
