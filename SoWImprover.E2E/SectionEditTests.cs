@@ -161,6 +161,66 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
             new() { Timeout = 5000 });
     }
 
+    /// Verifies that a saved edit persists after a full page reload, proving
+    /// the content was written to the database (not just updated in the UI).
+    [Fact]
+    public async Task EditAndSave_PersistsAfterReload()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 15000 });
+
+        // Edit and save
+        await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
+        await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
+        var editor = _page.Locator(".tiptap").First;
+        await editor.ClickAsync();
+        await _page.Keyboard.PressAsync("Control+a");
+        await _page.Keyboard.TypeAsync("Persisted edit content");
+        await _page.Locator("button:has-text('Save')").ClickAsync();
+        await Expect(_page.Locator(".app-editor-toolbar")).Not.ToBeVisibleAsync();
+
+        // Full page reload
+        await _page.ReloadAsync();
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Edited content should still be there
+        await Expect(_page.Locator("text=Persisted edit content")).ToBeVisibleAsync();
+    }
+
+    /// Verifies that clicking "Restore this version" actually replaces the
+    /// displayed content with the old version's text.
+    [Fact]
+    public async Task VersionRestore_UpdatesDisplayedContent()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+        await _page.Locator("button:has-text('Edit'):enabled").First.WaitForAsync(
+            new() { Timeout = 15000 });
+
+        // Create version 2 with distinct content
+        await _page.Locator("button:has-text('Edit'):enabled").First.ClickAsync();
+        await _page.WaitForSelectorAsync(".tiptap", new() { Timeout = 15000 });
+        var editor = _page.Locator(".tiptap").First;
+        await editor.ClickAsync();
+        await _page.Keyboard.PressAsync("Control+a");
+        await _page.Keyboard.TypeAsync("Version 2 text for restore");
+        await _page.Locator("button:has-text('Save')").ClickAsync();
+        await Expect(_page.Locator(".app-editor-toolbar")).Not.ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Version 2 text for restore")).ToBeVisibleAsync();
+
+        // Select version 1 and restore it
+        await _page.Locator(".app-version-select").SelectOptionAsync("1");
+        await Expect(_page.Locator("button:has-text('Restore this version')")).ToBeVisibleAsync(
+            new() { Timeout = 5000 });
+        await _page.Locator("button:has-text('Restore this version')").ClickAsync();
+
+        // Original content from version 1 should now be displayed
+        await Expect(_page.Locator("text=Improved text for editing.")).ToBeVisibleAsync(
+            new() { Timeout = 5000 });
+    }
+
     /// Verifies that cancelling an edit with unsaved changes shows a browser
     /// confirm dialog; dismissing it keeps the editor open.
     [Fact]

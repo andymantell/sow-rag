@@ -156,6 +156,27 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.WaitForURLAsync(_fixture.BaseUrl + "/", new() { Timeout = 10000 });
     }
 
+    /// Verifies that excluding a section persists after a full page reload,
+    /// proving the suppression state was written to the database.
+    [Fact]
+    public async Task ResultsPage_ExcludeSection_PersistsAfterReload()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Exclude the first section
+        await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
+        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+
+        // Full page reload
+        await _page.ReloadAsync();
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Section should still be excluded
+        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("button:has-text('Include section')")).ToBeVisibleAsync();
+    }
+
     /// Verifies that both seeded sections (improved + unrecognised) render
     /// as separate diff rows, not just the first one.
     [Fact]
