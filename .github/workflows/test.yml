@@ -18,14 +18,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore SoWImprover.Tests/SoWImprover.Tests.csproj
+      - name: Unit and integration tests
+        run: make test
 
-      - name: Build
-        run: dotnet build SoWImprover.Tests/SoWImprover.Tests.csproj --no-restore --configuration Release
-
-      - name: Test
-        run: dotnet test SoWImprover.Tests/SoWImprover.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      - name: E2E tests
+        run: make e2e-test
 
       - name: Upload test results
         if: always()

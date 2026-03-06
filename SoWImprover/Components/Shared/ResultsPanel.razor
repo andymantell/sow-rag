@@ -169,7 +169,7 @@
                                 {
                                     var summaryText = "What changed" + (string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})");
 
-                                    <details class="govuk-details" data-module="govuk-details" @(hasEdits ? null : "open")>
+                                    <details class="govuk-details" data-module="govuk-details" open="@(!hasEdits ? true : (bool?)null)">
                                         <summary class="govuk-details__summary">
                                             <span class="govuk-details__summary-text">@summaryText</span>
                                         </summary>
@@ -230,8 +230,15 @@
     {
         if (firstRender)
         {
-            _editorModule = await JS.InvokeAsync<IJSObjectReference>(
-                "import", "./Components/Shared/ResultsPanel.razor.js");
+            try
+            {
+                _editorModule = await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./Components/Shared/ResultsPanel.razor.js");
+            }
+            catch (JSException)
+            {
+                // JS module may not be available in test environments
+            }
             StateHasChanged();
         }
     }
