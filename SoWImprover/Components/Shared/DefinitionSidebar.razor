@@ -34,7 +34,10 @@ else
     private void OnDefinitionChanged()
     {
         if (Definition.IsReady)
+        {
             RenderDefinition();
+            Definition.OnChanged -= OnDefinitionChanged;
+        }
         _ = InvokeAsync(StateHasChanged);
     }
 

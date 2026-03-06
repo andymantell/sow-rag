@@ -179,7 +179,19 @@
         try
         {
             var suppressedSnapshot = _suppressed.ToHashSet();
-            var pdfBytes = await Task.Run(() => PdfExportService.Generate(_result, suppressedSnapshot));
+            // Snapshot section content to avoid mutation during background PDF generation
+            var sectionSnapshots = _result.Sections.Select(s => (s.OriginalTitle, s.OriginalContent, s.ImprovedContent, s.Unrecognised)).ToList();
+            var snapshotResult = new ImprovementResult
+            {
+                Sections = sectionSnapshots.Select(s => new SectionResult
+                {
+                    OriginalTitle = s.OriginalTitle,
+                    OriginalContent = s.OriginalContent,
+                    ImprovedContent = s.ImprovedContent,
+                    Unrecognised = s.Unrecognised
+                }).ToList()
+            };
+            var pdfBytes = await Task.Run(() => PdfExportService.Generate(snapshotResult, suppressedSnapshot));
             var base64 = Convert.ToBase64String(pdfBytes);
             await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
         }

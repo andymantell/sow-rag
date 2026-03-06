@@ -131,6 +131,16 @@
             await using (var stream = _selectedFile!.OpenReadStream(MaxUploadBytes))
                 await stream.CopyToAsync(fs);
 
+            // Validate PDF magic bytes before handing to Python subprocess
+            var header = new byte[5];
+            using (var check = File.OpenRead(tempPath))
+                _ = await check.ReadAsync(header);
+            if (!System.Text.Encoding.ASCII.GetString(header).StartsWith("%PDF"))
+            {
+                _errors.Add(("file-input", "The selected file is not a valid PDF"));
+                return;
+            }
+
             var originalText = (await DocumentLoader.ExtractTextAsync(tempPath)).Trim();
 
             if (string.IsNullOrWhiteSpace(originalText))
@@ -142,7 +152,7 @@
             var progress = new Progress<string>(msg =>
             {
                 _progressMessage = msg;
-                InvokeAsync(StateHasChanged);
+                _ = InvokeAsync(StateHasChanged);
             });
             var result = await Improver.ImproveAsync(originalText, Definition, progress);
 
@@ -197,7 +207,8 @@
         }
         finally
         {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); }
+            catch (IOException) { /* best-effort cleanup */ }
             if (!navigating)
             {
                 _isImproving = false;

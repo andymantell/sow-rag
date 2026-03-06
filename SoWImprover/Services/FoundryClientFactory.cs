@@ -14,7 +14,7 @@ namespace SoWImprover.Services;
 /// Resolves the local Foundry Local CLI service endpoint or an Azure AI Foundry cloud endpoint
 /// and returns a configured <see cref="ChatClient"/>.
 /// </summary>
-public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFactory> logger)
+public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFactory> logger) : IDisposable
 {
     // Long-lived HttpClient instance — avoids socket exhaustion from per-call instantiation.
     private static readonly HttpClient _http = new();
@@ -249,6 +249,13 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
                 "Could not run the 'foundry' CLI. Is Foundry Local installed? " +
                 "Install with: winget install Microsoft.FoundryLocal", ex);
         }
+    }
+
+    public void Dispose()
+    {
+        _lock.Dispose();
+        _rootLock.Dispose();
+        _embeddingLock.Dispose();
     }
 
     private ChatClient CreateCloudClient()

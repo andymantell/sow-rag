@@ -7,11 +7,12 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 {
     private readonly int _chunkSize = config.GetValue<int>("Docs:ChunkSize", 500);
     private readonly int _chunkOverlap = config.GetValue<int>("Docs:ChunkOverlap", 50);
+    private readonly object _pythonLock = new();
     private string? _pythonExe;
 
     // Cache of raw extracted texts keyed by filename, populated during LoadFolder.
     // Allows DefinitionGeneratorService to reuse the text without a second subprocess call.
-    private readonly Dictionary<string, string> _extractedTexts = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _extractedTexts = new();
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
             _extractedTexts[Path.GetFileName(file)] = text;
             chunks.AddRange(ChunkText(text, Path.GetFileName(file)));
         }
+
         return chunks;
     }
 
@@ -104,7 +106,14 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
         return output.ToString();
     }
 
-    private string GetPythonExe() => _pythonExe ??= FindPython();
+    private string GetPythonExe()
+    {
+        if (_pythonExe is not null) return _pythonExe;
+        lock (_pythonLock)
+        {
+            return _pythonExe ??= FindPython();
+        }
+    }
 
     private string FindPython()
     {

@@ -283,3 +283,17 @@ del {
 .app-version-select {
   max-width: 280px;
 }
+
+/* ── Responsive: stack diff panels on narrow screens ────── */
+@media (max-width: 48em) {
+  .diff-panels {
+    grid-template-columns: 1fr;
+  }
+  .diff-header-row {
+    grid-template-columns: 1fr;
+  }
+  .diff-col + .diff-col {
+    border-left: none;
+    border-top: 1px dashed #b1b4b6;
+  }
+}

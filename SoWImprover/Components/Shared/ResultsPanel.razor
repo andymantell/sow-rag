@@ -116,7 +116,7 @@
                                         {
                                             var label = v.VersionNumber == currentVersion
                                                 ? $"Version {v.VersionNumber} (current)"
-                                                : $"Version {v.VersionNumber} — {v.CreatedAt:d MMM yyyy HH:mm}";
+                                                : $"Version {v.VersionNumber} — {v.CreatedAt.ToLocalTime():d MMM yyyy HH:mm}";
                                             <option value="@v.VersionNumber">@label</option>
                                         }
                                     </select>
@@ -169,7 +169,7 @@
                                 {
                                     var summaryText = "What changed" + (string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})");
 
-                                    <details class="govuk-details" data-module="govuk-details" @(hasEdits ? "" : "open")>
+                                    <details class="govuk-details" data-module="govuk-details" @(hasEdits ? null : "open")>
                                         <summary class="govuk-details__summary">
                                             <span class="govuk-details__summary-text">@summaryText</span>
                                         </summary>

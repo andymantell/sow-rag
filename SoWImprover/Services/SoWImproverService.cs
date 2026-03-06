@@ -102,6 +102,7 @@ public class SoWImproverService(
 
         var prompt = $$"""
             You are classifying sections from an uploaded Statement of Work (SoW) document.
+            Respond in British English.
 
             UPLOADED SECTION TITLES:
             {{titlesJson}}
@@ -163,6 +164,7 @@ public class SoWImproverService(
 
         var prompt = $$"""
             You are an expert editor rewriting a Statement of Work (SoW) document.
+            Always write in British English (e.g. "organisation", "recognised", "colour", "centre").
 
             Your task is to rewrite the section below so that it reads as polished, professional SoW content.
             The output must be the rewritten section itself — actual contract/SoW language, not commentary,
@@ -210,7 +212,7 @@ public class SoWImproverService(
             {improvedText}
 
             List the key improvements made, as 2-4 concise bullet points starting with a dash.
-            Be specific. No preamble.
+            Be specific. No preamble. Write in British English.
             """;
 
         var opts = new ChatCompletionOptions { MaxOutputTokenCount = ExplanationMaxTokens };
@@ -256,24 +258,14 @@ public class SoWImproverService(
     {
         if (line.StartsWith('#')) return true;
         var t = line.Trim();
-        return t.Length > 2 && t.Any(char.IsLetter) && t == t.ToUpperInvariant();
+        if (t.Length < 3 || !t.Any(char.IsLetter)) return false;
+        if (t != t.ToUpperInvariant()) return false;
+        // Avoid misclassifying table cells, list items, or short abbreviations (e.g. "UK", "SLA")
+        if (t.StartsWith('|') || t.StartsWith('-') || t.StartsWith('*')) return false;
+        return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2;
     }
 
-    /// <summary>
-    /// Strips a wrapping markdown code fence (``` ... ```) from LLM output.
-    /// Only removes the opening and closing fence lines, not fences inside the content.
-    /// </summary>
-    private static string StripCodeFence(string text)
-    {
-        if (!text.StartsWith("```")) return text;
-        var firstNewline = text.IndexOf('\n');
-        if (firstNewline < 0) return text;
-        text = text[(firstNewline + 1)..].TrimEnd();
-        var lastNewline = text.LastIndexOf('\n');
-        if (lastNewline >= 0 && text[(lastNewline + 1)..].TrimEnd('`', ' ').Length == 0)
-            text = text[..lastNewline];
-        return text.Trim();
-    }
+    private static string StripCodeFence(string text) => LlmOutputHelper.StripCodeFence(text);
 }
 
 internal record DocumentSection(string Title, string Body);

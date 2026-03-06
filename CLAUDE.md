@@ -20,6 +20,7 @@ Services/
   DefinitionBuilder.cs           # 2-pass LLM: per-doc analysis → per-section synthesis
   SoWImproverService.cs          # Per-section RAG improvement pipeline
   DocumentLoader.cs              # Python subprocess PDF extraction + chunking
+  LlmOutputHelper.cs             # Shared: StripCodeFence for cleaning LLM output
   PdfExportService.cs            # QuestPDF-based PDF generation (markdown tables → native tables)
 Data/
   SoWDbContext.cs                # EF Core DbContext (SQLite); registered via AddDbContextFactory
@@ -34,7 +35,6 @@ Components/Pages/Home.razor      # Upload page + document history table
 Components/Pages/Results.razor   # Diff results page (prerender: false); PDF download + section suppression
 Components/Pages/Results.razor.js  # Collocated JS module for file download (no global scope)
 Components/Shared/ResultsPanel.razor.js  # Tiptap JS interop (createEditor, getMarkdown, toolbar commands)
-wwwroot/lib/tiptap/                      # Vendored Tiptap + ProseMirror ESM bundles (no CDN dependency)
 Components/Layout/MainLayout.razor  # GOV.UK layout; subscribes to GoodDefinition.OnChanged
 Components/Shared/               # DefinitionSidebar, UploadPanel, ResultsPanel
 sample-sows/embeddings-cache.json  # Auto-generated; delete to force recompute
@@ -75,7 +75,7 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 **PDF export:** QuestPDF Community license set once in `Program.cs`. `PdfExportService.Generate` is static and thread-safe. Callers must snapshot mutable state (e.g. `_suppressed.ToHashSet()`) before passing to `Task.Run`.
 
-**Tiptap editor:** Vendored ESM bundles in `wwwroot/lib/tiptap/` (downloaded from esm.sh, no CDN at runtime, no npm). Internal bare-specifier imports (e.g. `/@tiptap/pm@^2.7.0/state`) resolved via `<script type="importmap">` in `App.razor`. JS interop via collocated `ResultsPanel.razor.js`. Editor instances tracked by element ID in a JS `Map`. Uses `tiptap-markdown@0.8.10` (community, compatible with tiptap v2) for markdown round-trip.
+**Tiptap editor:** Loaded at runtime from esm.sh CDN (no vendored bundles, no npm). JS interop via collocated `ResultsPanel.razor.js`. Editor instances tracked by element ID in a JS `Map`. Toolbar uses `data-cmd` attributes with document-level event delegation (survives Blazor re-renders). Uses `tiptap-markdown@0.8.10` for markdown round-trip.
 
 **Version history:** Append-only `SectionVersionEntity` table. Restoring old versions creates a new version (never overwrites). `SectionEntity.ImprovedContent` always reflects the latest version. Version data loaded via `Include(s => s.Versions)` in Results.razor. `SectionResult.ImprovedContent` is `{ get; set; }` (mutable) so ResultsPanel can update it after edits.
 
@@ -94,3 +94,8 @@ App is working end-to-end with SQLite persistence, PDF export, and section suppr
 - Thread-safety: `_suppressed` HashSet snapshot before `Task.Run` in PDF generation
 - `EmbeddingService` no longer caches client (factory handles caching)
 - `DiffService` and `ResultState` deleted (dead code, replaced by persistence)
+- `StripCodeFence` consolidated into shared `LlmOutputHelper` (was duplicated)
+- `FoundryClientFactory` implements `IDisposable` for semaphore cleanup
+- `DocumentLoader`: thread-safe `_pythonExe` (lock) and `ConcurrentDictionary` for extracted texts
+- PDF magic byte validation before Python subprocess
+- Responsive CSS breakpoint for diff panels on narrow screens

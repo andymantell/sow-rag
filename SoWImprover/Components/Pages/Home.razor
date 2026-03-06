@@ -49,6 +49,7 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         _documents = await db.Documents
             .OrderByDescending(d => d.UploadedAt)
+            .Take(50)
             .AsNoTracking()
             .ToListAsync();
     }
