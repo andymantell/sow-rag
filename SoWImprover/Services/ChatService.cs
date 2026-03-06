@@ -14,6 +14,7 @@ public class ChatService(FoundryClientFactory factory) : IChatService
         var opts = new ChatCompletionOptions { MaxOutputTokenCount = maxTokens };
         var completion = await client.CompleteChatAsync(
             [new UserChatMessage(prompt)], opts, cancellationToken: ct);
-        return completion.Value.Content[0].Text;
+        var content = completion.Value.Content;
+        return content.Count > 0 ? content[0].Text ?? "" : "";
     }
 }
