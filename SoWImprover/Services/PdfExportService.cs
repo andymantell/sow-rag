@@ -51,9 +51,7 @@ public static partial class PdfExportService
                         col.Item().Text(section.OriginalTitle)
                             .Bold().FontSize(HeadingSize);
 
-                        var body = section.Unrecognised
-                            ? section.OriginalContent
-                            : section.ImprovedContent ?? section.OriginalContent;
+                        var body = section.ImprovedContent ?? section.OriginalContent;
 
                         RenderMarkdownBlocks(col, body);
                         col.Item().PaddingBottom(6);

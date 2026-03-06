@@ -108,6 +108,46 @@ public class PdfExportServiceTests
     }
 
     [Fact]
+    public void Generate_UnrecognisedSectionWithEdit_UsesImprovedContent()
+    {
+        // Simulate a user editing an unrecognised section — ImprovedContent gets set
+        var withEdit = new ImprovementResult
+        {
+            Sections =
+            [
+                new SectionResult
+                {
+                    OriginalTitle = "Unknown",
+                    OriginalContent = "Short.",
+                    ImprovedContent = "This section has been manually edited by the user with much longer content that differs from the original.",
+                    Unrecognised = true
+                }
+            ]
+        };
+
+        var withoutEdit = new ImprovementResult
+        {
+            Sections =
+            [
+                new SectionResult
+                {
+                    OriginalTitle = "Unknown",
+                    OriginalContent = "Short.",
+                    ImprovedContent = null,
+                    Unrecognised = true
+                }
+            ]
+        };
+
+        var pdfWithEdit = PdfExportService.Generate(withEdit);
+        var pdfWithoutEdit = PdfExportService.Generate(withoutEdit);
+
+        // The edited version should be larger because it has more content
+        Assert.True(pdfWithEdit.Length > pdfWithoutEdit.Length,
+            "PDF should include the edited content, not the original");
+    }
+
+    [Fact]
     public void Generate_EmptyContent_DoesNotThrow()
     {
         var result = new ImprovementResult
