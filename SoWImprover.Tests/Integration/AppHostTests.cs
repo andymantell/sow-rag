@@ -43,6 +43,8 @@ public class AppHostTests : IClassFixture<AppHostTests.SoWWebApplicationFactory>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            // Avoid UseStaticWebAssets() which fails with Git Bash path mismatches
+            builder.UseEnvironment("Production");
             builder.ConfigureServices(services =>
             {
                 // Remove the real BackgroundService so it doesn't try to load corpus

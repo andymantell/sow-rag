@@ -230,15 +230,8 @@
     {
         if (firstRender)
         {
-            try
-            {
-                _editorModule = await JS.InvokeAsync<IJSObjectReference>(
-                    "import", "./Components/Shared/ResultsPanel.razor.js");
-            }
-            catch (JSException)
-            {
-                // JS module may not be available in test environments
-            }
+            _editorModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./Components/Shared/ResultsPanel.razor.js");
             StateHasChanged();
         }
     }

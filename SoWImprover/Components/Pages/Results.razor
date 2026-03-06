@@ -90,17 +90,8 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-        {
-            try
-            {
-                _module = await JS.InvokeAsync<IJSObjectReference>(
-                    "import", "./Components/Pages/Results.razor.js");
-            }
-            catch (JSException)
-            {
-                // JS module may not be available in test environments
-            }
-        }
+            _module = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./Components/Pages/Results.razor.js");
     }
 
     private async Task HandleSectionEdited((int SectionIndex, string NewMarkdown) args)

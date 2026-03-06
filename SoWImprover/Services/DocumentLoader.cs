@@ -58,7 +58,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
     }
 
     /// <summary>Async extraction — used for uploaded PDFs during a request.</summary>
-    public Task<string> ExtractTextAsync(string filePath, CancellationToken ct = default)
+    public virtual Task<string> ExtractTextAsync(string filePath, CancellationToken ct = default)
         => Task.Run(() => RunPythonScript(filePath), ct);
 
     // ── PDF extraction via pymupdf4llm subprocess ─────────────────────────────
