@@ -37,6 +37,8 @@ public class UploadFlowTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
             File.Delete(_testPdfPath);
     }
 
+    /// Verifies the full upload-to-results happy path: select a PDF, submit,
+    /// and confirm the browser navigates to /results/{id}.
     [Fact]
     public async Task Upload_NavigatesToResultsPage()
     {
@@ -53,6 +55,8 @@ public class UploadFlowTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         Assert.Contains("/results/", _page.Url);
     }
 
+    /// Verifies that after uploading a PDF, the results page renders at least
+    /// one diff section row (proving the document was split, improved, and persisted).
     [Fact]
     public async Task Upload_ResultsPageShowsSections()
     {
@@ -70,6 +74,8 @@ public class UploadFlowTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         Assert.True(await sections.CountAsync() >= 1);
     }
 
+    /// Verifies that after a successful upload, navigating back to the home page
+    /// shows the document in the "Previous documents" table with a "View results" link.
     [Fact]
     public async Task Upload_AppearsInPreviousDocuments()
     {

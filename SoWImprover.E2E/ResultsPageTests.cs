@@ -26,6 +26,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await CleanupDocumentAsync();
     }
 
+    /// Verifies section headings render in the diff view (each section has a
+    /// heading in both the original and improved columns).
     [Fact]
     public async Task ResultsPage_ShowsSectionHeadings()
     {
@@ -38,6 +40,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         Assert.True(await headings.CountAsync() >= 2);
     }
 
+    /// Verifies the side-by-side diff layout: original content appears in the
+    /// left column and improved content in the right column.
     [Fact]
     public async Task ResultsPage_ShowsOriginalAndImproved()
     {
@@ -53,6 +57,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(rightCol.Locator("text=This is the improved intro.")).ToBeVisibleAsync();
     }
 
+    /// Verifies that sections which could not be matched to the definition of
+    /// good display a "Section not recognised" warning banner.
     [Fact]
     public async Task ResultsPage_ShowsUnrecognisedBanner()
     {
@@ -62,6 +68,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Section not recognised")).ToBeVisibleAsync();
     }
 
+    /// Verifies that clicking "Exclude section" hides the section content and
+    /// shows a "Section excluded from output" notice.
     [Fact]
     public async Task ResultsPage_ExcludeSection_ShowsExcludedNotice()
     {
@@ -74,6 +82,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
     }
 
+    /// Verifies that re-including a previously excluded section removes the
+    /// excluded notice and restores the section content.
     [Fact]
     public async Task ResultsPage_IncludeSection_RemovesExcludedNotice()
     {
@@ -88,6 +98,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Section excluded from output")).Not.ToBeVisibleAsync();
     }
 
+    /// Verifies the "Download improved document" button is present on the
+    /// results page.
     [Fact]
     public async Task ResultsPage_HasDownloadButton()
     {
@@ -97,6 +109,7 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("button:has-text('Download improved document')")).ToBeVisibleAsync();
     }
 
+    /// Verifies the back link is present and points to the home page.
     [Fact]
     public async Task ResultsPage_HasBackLink()
     {

@@ -26,6 +26,9 @@ public class PdfDownloadTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await CleanupDocumentAsync();
     }
 
+    /// Verifies that clicking "Download improved document" triggers a file
+    /// download with the correct filename ("improved-sow.pdf") and that the
+    /// downloaded file is a valid PDF (starts with %PDF magic bytes).
     [Fact]
     public async Task DownloadButton_TriggersPdfDownload()
     {

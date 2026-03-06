@@ -26,6 +26,8 @@ public class PreviousDocumentsTests : IClassFixture<PlaywrightFixture>, IAsyncLi
         await CleanupDocumentAsync();
     }
 
+    /// Verifies that a previously uploaded document appears in the "Previous
+    /// documents" table with its filename and a "View results" link.
     [Fact]
     public async Task PreviousDocuments_ShowsViewResultsLink()
     {
@@ -36,6 +38,8 @@ public class PreviousDocumentsTests : IClassFixture<PlaywrightFixture>, IAsyncLi
         await Expect(_page.Locator("text=View results")).ToBeVisibleAsync();
     }
 
+    /// Verifies that clicking "View results" navigates to the correct results
+    /// page for that document and renders the diff sections.
     [Fact]
     public async Task PreviousDocuments_ViewResultsNavigatesToResultsPage()
     {

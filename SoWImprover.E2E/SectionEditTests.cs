@@ -26,6 +26,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await CleanupDocumentAsync();
     }
 
+    /// Verifies that clicking Edit opens the Tiptap rich-text editor with its
+    /// toolbar, editor container, and Save/Cancel action buttons.
     [Fact]
     public async Task EditButton_OpensEditor()
     {
@@ -47,6 +49,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("button:has-text('Cancel')")).ToBeVisibleAsync();
     }
 
+    /// Verifies the full edit-save cycle: open editor, replace content, save,
+    /// then confirm the editor closes and the new content appears on the page.
     [Fact]
     public async Task EditAndSave_UpdatesContent()
     {
@@ -78,6 +82,8 @@ public class SectionEditTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Edited content from E2E test")).ToBeVisibleAsync();
     }
 
+    /// Verifies that cancelling an edit (with no unsaved changes) closes the
+    /// editor and leaves the original improved content unchanged.
     [Fact]
     public async Task EditAndCancel_KeepsOriginalContent()
     {

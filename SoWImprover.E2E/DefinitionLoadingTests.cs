@@ -19,6 +19,8 @@ public class DefinitionLoadingTests : IClassFixture<DefinitionNotReadyFixture>, 
         await _page.CloseAsync();
     }
 
+    /// Verifies that when the definition of good is still loading, the home
+    /// page shows a spinner and "Starting" status text.
     [Fact]
     public async Task DefinitionNotReady_ShowsSpinner()
     {
@@ -28,6 +30,8 @@ public class DefinitionLoadingTests : IClassFixture<DefinitionNotReadyFixture>, 
         await Expect(_page.Locator("text=Starting")).ToBeVisibleAsync();
     }
 
+    /// Verifies that submitting the form while the definition is still loading
+    /// shows a validation error telling the user to wait.
     [Fact]
     public async Task DefinitionNotReady_SubmitShowsStillLoadingError()
     {

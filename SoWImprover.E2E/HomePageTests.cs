@@ -19,6 +19,7 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.CloseAsync();
     }
 
+    /// Verifies the home page loads and has the correct page title.
     [Fact]
     public async Task HomePage_LoadsSuccessfully()
     {
@@ -27,6 +28,7 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page).ToHaveTitleAsync("Improve a statement of work");
     }
 
+    /// Verifies the upload form renders with a file input, label, and submit button.
     [Fact]
     public async Task HomePage_ShowsUploadForm()
     {
@@ -37,6 +39,7 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("#file-input")).ToBeAttachedAsync();
     }
 
+    /// Verifies the definition sidebar appears when the definition is ready.
     [Fact]
     public async Task HomePage_ShowsDefinitionSidebar()
     {
@@ -46,6 +49,8 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator("text=Definition of good")).ToBeVisibleAsync();
     }
 
+    /// Verifies that submitting the form without selecting a file shows a
+    /// GOV.UK-style validation error directing the user to upload a PDF.
     [Fact]
     public async Task HomePage_SubmitWithoutFile_ShowsError()
     {
@@ -56,6 +61,8 @@ public class HomePageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator(".govuk-error-summary >> text=Select a PDF to upload")).ToBeVisibleAsync();
     }
 
+    /// Verifies the "Previous documents" table is hidden when no documents
+    /// have been uploaded yet.
     [Fact]
     public async Task HomePage_NoPreviousDocuments_HidesTable()
     {
