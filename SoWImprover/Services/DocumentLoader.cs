@@ -87,7 +87,11 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
         // Read stdout and stderr concurrently to prevent buffer deadlock
         var output = new System.Text.StringBuilder();
         var error = new System.Text.StringBuilder();
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) output.AppendLine(e.Data); };
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is not null && !e.Data.Contains("Consider using the pymupdf_layout package"))
+                output.AppendLine(e.Data);
+        };
         process.ErrorDataReceived  += (_, e) => { if (e.Data is not null) error.AppendLine(e.Data); };
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();

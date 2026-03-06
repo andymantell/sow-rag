@@ -2,21 +2,66 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject ResultState ResultState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @if (ResultState.Current is not null)
 {
     <div class="govuk-width-container">
         <main class="govuk-main-wrapper" id="main-content">
-            <a href="/" class="govuk-back-link">Back</a>
+            <div class="app-results-toolbar">
+                <a href="/" class="govuk-back-link">Back</a>
+                <button class="govuk-button govuk-button--secondary"
+                        @onclick="DownloadPdfAsync"
+                        disabled="@_downloading">
+                    @(_downloading ? "Generating…" : "Download improved document")
+                </button>
+            </div>
             <ResultsPanel Result="ResultState.Current" />
         </main>
     </div>
 }
 
 @code {
+    private IJSObjectReference? _module;
+    private bool _downloading;
+
     protected override void OnInitialized()
     {
         if (ResultState.Current is null)
             Nav.NavigateTo("/", replace: true);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _module = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./Components/Pages/Results.razor.js");
+    }
+
+    private async Task DownloadPdfAsync()
+    {
+        if (ResultState.Current is null || _module is null) return;
+
+        _downloading = true;
+        try
+        {
+            var pdfBytes = await Task.Run(() => PdfExportService.Generate(ResultState.Current));
+            var base64 = Convert.ToBase64String(pdfBytes);
+            await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
     }
 }

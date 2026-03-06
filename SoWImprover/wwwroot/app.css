@@ -57,6 +57,18 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Results toolbar ─────────────────────────────────────── */
+.app-results-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.app-results-toolbar .govuk-back-link,
+.app-results-toolbar .govuk-button {
+  margin-bottom: 0;
+}
+
 /* ── Section-per-row diff layout ─────────────────────────── */
 .diff-panels {
   display: grid;
