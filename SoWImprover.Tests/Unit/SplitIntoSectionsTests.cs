@@ -83,4 +83,36 @@ public class SplitIntoSectionsTests
         Assert.Equal("Introduction", sections[0].Title);
         Assert.Equal("First Heading", sections[1].Title);
     }
+
+    [Fact]
+    public void UnderscoreMarkdownInHeading_StrippedFromTitle()
+    {
+        var text = "# __Underline Heading__\nSome content.";
+        var sections = SoWImproverService.SplitIntoSections(text);
+
+        Assert.Single(sections);
+        Assert.Equal("Underline Heading", sections[0].Title);
+    }
+
+    [Fact]
+    public void ItalicMarkdownInHeading_StrippedFromTitle()
+    {
+        var text = "# *Italic Heading*\nSome content.";
+        var sections = SoWImproverService.SplitIntoSections(text);
+
+        Assert.Single(sections);
+        Assert.Equal("Italic Heading", sections[0].Title);
+    }
+
+    [Fact]
+    public void MultipleSections_PreservesOriginalOrder()
+    {
+        var text = "SCOPE OF WORK\nScope body.\n\nPROJECT TIMELINE\nTimeline body.\n\nROLES AND RESPONSIBILITIES\nRoles body.";
+        var sections = SoWImproverService.SplitIntoSections(text);
+
+        Assert.Equal(3, sections.Count);
+        Assert.Equal("SCOPE OF WORK", sections[0].Title);
+        Assert.Equal("PROJECT TIMELINE", sections[1].Title);
+        Assert.Equal("ROLES AND RESPONSIBILITIES", sections[2].Title);
+    }
 }

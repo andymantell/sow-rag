@@ -241,7 +241,7 @@ public class SoWImproverService(
 
     internal static bool IsHeading(string line)
     {
-        if (line.StartsWith('#')) return true;
+        if (line.StartsWith('#') && line.TrimStart('#').StartsWith(' ')) return true;
         var t = line.Trim();
         if (t.Length < 3 || !t.Any(char.IsLetter)) return false;
         if (t != t.ToUpperInvariant()) return false;

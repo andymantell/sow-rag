@@ -90,6 +90,35 @@ public class EmbeddingRetrieverTests
     }
 
     [Fact]
+    public async Task RetrieveAsync_EmptyCorpus_ReturnsEmptyList()
+    {
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever([], [], embedding, topK: 3);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void ChunkCount_ReturnsCorrectCount()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "c1" },
+            new() { SourceFile = "a.pdf", Text = "c2" },
+            new() { SourceFile = "b.pdf", Text = "c3" },
+        };
+        var vectors = new float[][] { [1], [1], [1] };
+        var embedding = Substitute.For<IEmbeddingService>();
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, 3);
+        Assert.Equal(3, retriever.ChunkCount);
+    }
+
+    [Fact]
     public void DocumentCount_ReturnsDistinctSourceFiles()
     {
         var chunks = new List<DocumentChunk>

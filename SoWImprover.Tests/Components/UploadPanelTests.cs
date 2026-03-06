@@ -57,13 +57,17 @@ public class UploadPanelTests : BunitContext
     }
 
     [Fact]
-    public void Submit_DefinitionNotReady_ShowsError()
+    public void Submit_NoFileAndDefinitionNotReady_ShowsBothErrors()
     {
+        // GoodDefinition is registered as not-ready by RegisterServices.
+        // Submitting with no file shows both validation errors:
+        // "Select a PDF to upload" (no file) AND "still loading" (definition not ready).
         RegisterServices();
         var cut = Render<UploadPanel>();
 
         cut.Find("form").Submit();
 
+        Assert.Contains("Select a PDF to upload", cut.Markup);
         Assert.Contains("still loading", cut.Markup);
     }
 

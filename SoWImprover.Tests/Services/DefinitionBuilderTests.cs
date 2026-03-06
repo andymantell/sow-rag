@@ -30,9 +30,12 @@ public class DefinitionBuilderTests
         var sections = await _builder.BuildDefinitionAsync(
             documents, msg => progress.Add(msg));
 
-        // Should produce 15 canonical sections
+        // Should produce 15 canonical sections with expected names
         Assert.Equal(15, sections.Count);
         Assert.All(sections, s => Assert.False(string.IsNullOrWhiteSpace(s.Content)));
+        Assert.Contains(sections, s => s.Name == "Scope of Work");
+        Assert.Contains(sections, s => s.Name == "Deliverables");
+        Assert.Contains(sections, s => s.Name == "Acceptance Criteria");
 
         // Should have reported progress for analysis + synthesis
         Assert.Contains(progress, p => p.Contains("Analysing document"));

@@ -64,4 +64,21 @@ public class IsHeadingTests
         // Single word, even if long, should not be a heading
         Assert.False(SoWImproverService.IsHeading("INTRODUCTION"));
     }
+
+    [Theory]
+    [InlineData("#hashtag")]
+    [InlineData("#nosuchheading")]
+    [InlineData("#123")]
+    public void HashWithoutSpace_NotDetectedAsHeading(string line)
+    {
+        Assert.False(SoWImproverService.IsHeading(line));
+    }
+
+    [Theory]
+    [InlineData("123 456")]
+    [InlineData("-- --")]
+    public void NonLetterAllCaps_NotDetectedAsHeadings(string line)
+    {
+        Assert.False(SoWImproverService.IsHeading(line));
+    }
 }

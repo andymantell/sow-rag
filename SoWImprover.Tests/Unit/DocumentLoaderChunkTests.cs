@@ -39,14 +39,15 @@ public class DocumentLoaderChunkTests
         var text = "one two three four five six";
         var chunks = loader.ChunkText(text, "test.pdf");
 
-        Assert.True(chunks.Count >= 2);
+        // 6 words, chunk size 3, overlap 1 → advance by 2 → chunks at [0,1,2], [2,3,4], [4,5]
+        Assert.Equal(3, chunks.Count);
         Assert.Equal(0, chunks[0].ChunkIndex);
         Assert.Equal(1, chunks[1].ChunkIndex);
+        Assert.Equal(2, chunks[2].ChunkIndex);
 
-        // First chunk should contain the first 3 words
         Assert.Equal("one two three", chunks[0].Text);
-        // Second chunk starts at word index 2 (overlap = 1)
         Assert.Equal("three four five", chunks[1].Text);
+        Assert.Equal("five six", chunks[2].Text);
     }
 
     [Fact]

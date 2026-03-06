@@ -168,6 +168,54 @@ public class PdfExportServiceTests
     }
 
     [Fact]
+    public void Generate_NullSuppressedSet_SameAsEmptySet()
+    {
+        var result = CreateResult(
+            ("Section A", "Content A", false),
+            ("Section B", "Content B", false));
+
+        var pdfNull = PdfExportService.Generate(result, null);
+        var pdfEmpty = PdfExportService.Generate(result, new HashSet<int>());
+
+        Assert.Equal(pdfNull.Length, pdfEmpty.Length);
+    }
+
+    [Fact]
+    public void Generate_MarkdownHeadingsInBody_DoesNotThrow()
+    {
+        var result = new ImprovementResult
+        {
+            Sections =
+            [
+                new SectionResult
+                {
+                    OriginalTitle = "Section",
+                    OriginalContent = "plain",
+                    ImprovedContent = "## Sub-heading\n\nParagraph text.\n\n### Deeper heading\n\nMore text."
+                }
+            ]
+        };
+
+        var pdf = PdfExportService.Generate(result);
+        Assert.True(pdf.Length > 0);
+    }
+
+    [Fact]
+    public void Generate_AllSectionsSuppressed_ProducesValidPdf()
+    {
+        var result = CreateResult(
+            ("Section A", "Content A", false),
+            ("Section B", "Content B", false));
+
+        var suppressed = new HashSet<int> { 0, 1 };
+        var pdf = PdfExportService.Generate(result, suppressed);
+
+        // Should still produce a valid (albeit empty content) PDF
+        Assert.True(pdf.Length > 0);
+        Assert.Equal((byte)'%', pdf[0]);
+    }
+
+    [Fact]
     public void Generate_BulletList_DoesNotThrow()
     {
         var result = new ImprovementResult
