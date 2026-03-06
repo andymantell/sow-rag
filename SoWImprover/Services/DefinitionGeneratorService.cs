@@ -34,13 +34,85 @@ public class DefinitionGeneratorService(
 
         logger.LogInformation("Generating definition from {Count} document(s)", documents.Count);
         definition.SetProgress($"Starting analysis of {documents.Count} document(s)…");
-        var sections = await builder.BuildDefinitionAsync(documents, definition.SetProgress, ct);
+        var sections = await GetOrBuildDefinitionAsync(documents, folder, definition.SetProgress, ct);
 
         var retriever = new EmbeddingRetriever(chunks, vectors, embeddingService, topK);
 
         definition.SetReady(sections, retriever, retriever.DocumentCount, retriever.ChunkCount);
 
         logger.LogInformation("Definition of good is ready ({Count} section(s))", sections.Count);
+    }
+
+    /// <summary>
+    /// Returns definition sections, loading from cache if valid or rebuilding via LLM otherwise.
+    /// Cache file: <c>{folder}/definition-cache.json</c>.
+    /// Cache is valid when corpus fingerprint and LLM model name both match.
+    /// </summary>
+    private async Task<IReadOnlyList<DefinedSection>> GetOrBuildDefinitionAsync(
+        IReadOnlyList<(string FileName, string Text)> documents,
+        string folder,
+        Action<string> progress,
+        CancellationToken ct)
+    {
+        var modelName = config.GetValue<bool>("Foundry:UseLocal")
+            ? config["Foundry:LocalModelName"] ?? "phi-4"
+            : config["Foundry:CloudModelName"] ?? "";
+        var cacheFile = Path.Combine(folder, "definition-cache.json");
+        var fingerprint = ComputeCorpusFingerprint(folder);
+
+        // Try loading from cache
+        if (File.Exists(cacheFile))
+        {
+            try
+            {
+                progress("Loading definition from cache…");
+                var cached = JsonSerializer.Deserialize<DefinitionCacheFile>(
+                    await File.ReadAllTextAsync(cacheFile, ct));
+
+                if (cached?.Fingerprint == fingerprint && cached.Model == modelName)
+                {
+                    var sections = cached.Sections
+                        .Select(s => new DefinedSection(s.Name, s.Content))
+                        .ToList();
+
+                    logger.LogInformation(
+                        "Loaded {Count} definition section(s) from cache", sections.Count);
+                    return sections;
+                }
+
+                logger.LogInformation("Definition cache is stale — rebuilding");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not read definition cache — rebuilding");
+            }
+        }
+
+        // Rebuild via LLM
+        var result = await builder.BuildDefinitionAsync(documents, progress, ct);
+
+        // Persist cache
+        try
+        {
+            var cacheData = new DefinitionCacheFile
+            {
+                Fingerprint = fingerprint,
+                Model = modelName,
+                Sections = result
+                    .Select(s => new DefinitionCacheSection { Name = s.Name, Content = s.Content })
+                    .ToList()
+            };
+            var json = JsonSerializer.Serialize(
+                cacheData, new JsonSerializerOptions { WriteIndented = false });
+            await File.WriteAllTextAsync(cacheFile, json, ct);
+            logger.LogInformation("Definition cache saved to {Path}", cacheFile);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not save definition cache — continuing without it");
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -144,6 +216,19 @@ public class DefinitionGeneratorService(
 }
 
 // ── Cache file models ────────────────────────────────────────────────────────
+
+file sealed class DefinitionCacheFile
+{
+    public string Fingerprint { get; set; } = "";
+    public string Model { get; set; } = "";
+    public List<DefinitionCacheSection> Sections { get; set; } = [];
+}
+
+file sealed class DefinitionCacheSection
+{
+    public string Name { get; set; } = "";
+    public string Content { get; set; } = "";
+}
 
 file sealed class EmbeddingCacheFile
 {
