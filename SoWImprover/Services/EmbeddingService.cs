@@ -5,7 +5,7 @@ namespace SoWImprover.Services;
 /// <summary>
 /// Wraps the Foundry Local embeddings endpoint, providing single and batch embedding calls.
 /// </summary>
-public class EmbeddingService(FoundryClientFactory factory)
+public class EmbeddingService(FoundryClientFactory factory) : IEmbeddingService
 {
     // nomic-embed-text context limit is 8192 tokens (~32K chars). Truncate conservatively
     // so chunks containing long markdown table rows or other non-prose content never exceed it.

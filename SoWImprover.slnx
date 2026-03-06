@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SoWImprover.Tests/SoWImprover.Tests.csproj" />
+  <Project Path="SoWImprover/SoWImprover.csproj" />
+</Solution>

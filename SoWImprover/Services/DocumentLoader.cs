@@ -146,7 +146,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 
     // ── Chunking ──────────────────────────────────────────────────────────────
 
-    private List<DocumentChunk> ChunkText(string text, string sourceFile)
+    internal List<DocumentChunk> ChunkText(string text, string sourceFile)
     {
         var words = text.Split([' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries);
         var chunks = new List<DocumentChunk>();

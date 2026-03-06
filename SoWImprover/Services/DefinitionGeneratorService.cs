@@ -8,7 +8,7 @@ namespace SoWImprover.Services;
 public class DefinitionGeneratorService(
     DocumentLoader loader,
     DefinitionBuilder builder,
-    EmbeddingService embeddingService,
+    IEmbeddingService embeddingService,
     GoodDefinition definition,
     IConfiguration config,
     ILogger<DefinitionGeneratorService> logger) : BackgroundService

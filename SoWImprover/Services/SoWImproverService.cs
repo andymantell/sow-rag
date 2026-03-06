@@ -1,12 +1,11 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using OpenAI.Chat;
 using SoWImprover.Models;
 
 namespace SoWImprover.Services;
 
 public class SoWImproverService(
-    FoundryClientFactory factory,
+    IChatService chatService,
     ILogger<SoWImproverService> logger)
 {
     private const int MaxDefinitionChars = 2_000;
@@ -19,14 +18,13 @@ public class SoWImproverService(
         string originalText, GoodDefinition definition,
         IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        var client = await factory.GetChatClientAsync(ct);
         var sections = SplitIntoSections(originalText);
 
         // One LLM call to classify all uploaded section titles against the canonical set.
         progress?.Report("Matching sections…");
         var canonicalNames = definition.Sections.Select(s => s.Name).ToList();
         var uploadedTitles = sections.Select(s => s.Title).ToList();
-        var matching = await MatchSectionsAsync(client, uploadedTitles, canonicalNames, ct);
+        var matching = await MatchSectionsAsync(uploadedTitles, canonicalNames, ct);
 
         var sectionResults = new List<SectionResult>(sections.Count);
         var allChunks = new List<DocumentChunk>();
@@ -59,8 +57,8 @@ public class SoWImproverService(
             var chunks = await definition.Retriever!.RetrieveAsync(section.Body, ct);
             allChunks.AddRange(chunks);
 
-            var improved = await ImproveSectionAsync(client, section, chunks, definedSection.Content, ct);
-            var explanation = await ExplainChangesAsync(client, section, improved, ct);
+            var improved = await ImproveSectionAsync(section, chunks, definedSection.Content, ct);
+            var explanation = await ExplainChangesAsync(section, improved, ct);
 
             sectionResults.Add(new SectionResult
             {
@@ -92,7 +90,6 @@ public class SoWImproverService(
     // ── LLM calls ─────────────────────────────────────────────────────────────
 
     private async Task<Dictionary<string, string?>> MatchSectionsAsync(
-        ChatClient client,
         IList<string> uploadedTitles,
         IList<string> canonicalNames,
         CancellationToken ct)
@@ -119,18 +116,15 @@ public class SoWImproverService(
             Example: {"Title A": "Canonical X", "Title B": null}
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = MatchingMaxTokens };
-        var completion = await client.CompleteChatAsync(
-            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
-
-        var json = StripCodeFence(completion.Value.Content[0].Text.Trim());
+        var raw = await chatService.CompleteAsync(prompt, MatchingMaxTokens, ct);
+        var json = LlmOutputHelper.StripCodeFence(raw.Trim());
 
         try
         {
-            var raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)
                       ?? [];
-            var result = new Dictionary<string, string?>(raw.Count);
-            foreach (var (k, v) in raw)
+            var result = new Dictionary<string, string?>(parsed.Count);
+            foreach (var (k, v) in parsed)
                 result[k] = v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
             foreach (var title in uploadedTitles)
@@ -148,8 +142,7 @@ public class SoWImproverService(
         }
     }
 
-    private static async Task<string> ImproveSectionAsync(
-        ChatClient client,
+    private async Task<string> ImproveSectionAsync(
         DocumentSection section,
         List<DocumentChunk> chunks,
         string sectionDefinition,
@@ -188,18 +181,14 @@ public class SoWImproverService(
             Do NOT add a document title or any heading at all. No preamble, no explanation.
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = ImprovementMaxTokens };
-        var completion = await client.CompleteChatAsync(
-            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
-
-        var improved = StripCodeFence(completion.Value.Content[0].Text.Trim());
+        var improved = LlmOutputHelper.StripCodeFence(
+            (await chatService.CompleteAsync(prompt, ImprovementMaxTokens, ct)).Trim());
         // Strip a leading heading the model may have hallucinated — \A anchors to string start only
         improved = Regex.Replace(improved, @"\A#{1,2}[^\n]*\n+", "").TrimStart();
         return improved;
     }
 
-    private static async Task<string> ExplainChangesAsync(
-        ChatClient client,
+    private async Task<string> ExplainChangesAsync(
         DocumentSection section,
         string improvedText,
         CancellationToken ct)
@@ -215,11 +204,7 @@ public class SoWImproverService(
             Be specific. No preamble. Write in British English.
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = ExplanationMaxTokens };
-        var completion = await client.CompleteChatAsync(
-            [new UserChatMessage(prompt)], opts, cancellationToken: ct);
-
-        return completion.Value.Content[0].Text.Trim();
+        return (await chatService.CompleteAsync(prompt, ExplanationMaxTokens, ct)).Trim();
     }
 
     internal static List<DocumentSection> SplitIntoSections(string text)
@@ -254,7 +239,7 @@ public class SoWImproverService(
         return sections;
     }
 
-    private static bool IsHeading(string line)
+    internal static bool IsHeading(string line)
     {
         if (line.StartsWith('#')) return true;
         var t = line.Trim();
@@ -264,8 +249,6 @@ public class SoWImproverService(
         if (t.StartsWith('|') || t.StartsWith('-') || t.StartsWith('*')) return false;
         return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2;
     }
-
-    private static string StripCodeFence(string text) => LlmOutputHelper.StripCodeFence(text);
 }
 
 internal record DocumentSection(string Title, string Body);

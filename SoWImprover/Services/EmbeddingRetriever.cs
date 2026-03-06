@@ -9,7 +9,7 @@ public class EmbeddingRetriever
 {
     private readonly List<DocumentChunk> _chunks;
     private readonly float[][] _vectors;       // parallel to _chunks
-    private readonly EmbeddingService _embeddingService;
+    private readonly IEmbeddingService _embeddingService;
     private readonly int _topK;
 
     /// <summary>Total number of corpus chunks.</summary>
@@ -21,7 +21,7 @@ public class EmbeddingRetriever
     public EmbeddingRetriever(
         List<DocumentChunk> chunks,
         float[][] vectors,
-        EmbeddingService embeddingService,
+        IEmbeddingService embeddingService,
         int topK)
     {
         if (chunks.Count != vectors.Length)
@@ -48,7 +48,7 @@ public class EmbeddingRetriever
             .ToList();
     }
 
-    private static float CosineSimilarity(float[] a, float[] b)
+    internal static float CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length)
             throw new ArgumentException($"Vector dimension mismatch: {a.Length} vs {b.Length}.");

@@ -1,10 +1,8 @@
-using System.Text.RegularExpressions;
-using OpenAI.Chat;
 using SoWImprover.Models;
 
 namespace SoWImprover.Services;
 
-public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionBuilder> logger)
+public class DefinitionBuilder(IChatService chatService, ILogger<DefinitionBuilder> logger)
 {
     private const int MaxDocChars = 12_000;
     private const int AnalysisMaxTokens = 2048;
@@ -12,7 +10,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
 
     /// <summary>Canonical SoW sections used to generate the definition of good.</summary>
     private static readonly IReadOnlyList<string> CanonicalSections =
-    [                    
+    [
         "Acceptance Criteria",
         "Deliverables",
         "Introduction/Background",
@@ -40,8 +38,6 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
         Action<string> progress,
         CancellationToken ct = default)
     {
-        var client = await factory.GetChatClientAsync(ct);
-
         // Pass 1: analyse each document against the canonical sections
         logger.LogInformation("Analysing {Count} document(s) against {Sections} canonical sections",
             documents.Count, CanonicalSections.Count);
@@ -51,7 +47,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             var (fileName, text) = documents[i];
             progress($"Analysing document {i + 1} of {documents.Count}: {fileName}");
             logger.LogInformation("Analysing document: {FileName}", fileName);
-            summaries.Add(await AnalyseDocumentAsync(client, fileName, text, ct));
+            summaries.Add(await AnalyseDocumentAsync(fileName, text, ct));
         }
 
         // Pass 2: synthesise one definition per canonical section
@@ -61,15 +57,15 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             var sectionName = CanonicalSections[i];
             progress($"Writing definition: {sectionName} ({i + 1} of {CanonicalSections.Count})");
             logger.LogInformation("Synthesising definition for section: {Section}", sectionName);
-            var content = await SynthesiseSectionAsync(client, sectionName, summaries, ct);
+            var content = await SynthesiseSectionAsync(sectionName, summaries, ct);
             sections.Add(new DefinedSection(sectionName, content));
         }
 
         return sections;
     }
 
-    private static async Task<string> AnalyseDocumentAsync(
-        ChatClient client, string fileName, string text, CancellationToken ct)
+    private async Task<string> AnalyseDocumentAsync(
+        string fileName, string text, CancellationToken ct)
     {
         if (text.Length > MaxDocChars)
             text = text[..MaxDocChars] + "\n[truncated]";
@@ -93,13 +89,12 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             {text}
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = AnalysisMaxTokens };
-        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
-        return StripCodeFences(result.Value.Content[0].Text);
+        return LlmOutputHelper.StripCodeFence(
+            await chatService.CompleteAsync(prompt, AnalysisMaxTokens, ct));
     }
 
     private async Task<string> SynthesiseSectionAsync(
-        ChatClient client, string sectionName, List<string> summaries, CancellationToken ct)
+        string sectionName, List<string> summaries, CancellationToken ct)
     {
         var joined = string.Join("\n\n---\n\n",
             summaries.Select((s, i) => $"**Document {i + 1} analysis:**\n{s}"));
@@ -122,10 +117,7 @@ public class DefinitionBuilder(FoundryClientFactory factory, ILogger<DefinitionB
             {{joined}}
             """;
 
-        var opts = new ChatCompletionOptions { MaxOutputTokenCount = SynthesisMaxTokens };
-        var result = await client.CompleteChatAsync([new UserChatMessage(prompt)], opts, cancellationToken: ct);
-        return StripCodeFences(result.Value.Content[0].Text);
+        return LlmOutputHelper.StripCodeFence(
+            await chatService.CompleteAsync(prompt, SynthesisMaxTokens, ct));
     }
-
-    private static string StripCodeFences(string text) => LlmOutputHelper.StripCodeFence(text);
 }

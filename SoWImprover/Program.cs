@@ -15,8 +15,9 @@ builder.Services.Configure<HostOptions>(o =>
 builder.Services.AddSingleton<GoodDefinition>();
 builder.Services.AddSingleton<DocumentLoader>();
 builder.Services.AddSingleton<FoundryClientFactory>();
+builder.Services.AddSingleton<IChatService, ChatService>();
+builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<DefinitionBuilder>();
-builder.Services.AddSingleton<EmbeddingService>();
 builder.Services.AddSingleton<SoWImproverService>();
 
 // BackgroundService: generates the definition of good at startup
@@ -49,3 +50,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+/// <summary>Enables WebApplicationFactory to discover the entry point assembly.</summary>
+public partial class Program { }
