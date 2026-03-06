@@ -19,13 +19,13 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore dependencies
-        run: dotnet restore SoWImprover.sln
+        run: dotnet restore SoWImprover.Tests/SoWImprover.Tests.csproj
 
       - name: Build
-        run: dotnet build SoWImprover.sln --no-restore --configuration Release
+        run: dotnet build SoWImprover.Tests/SoWImprover.Tests.csproj --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test SoWImprover.sln --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test SoWImprover.Tests/SoWImprover.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Upload test results
         if: always()
