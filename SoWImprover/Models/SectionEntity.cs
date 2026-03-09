@@ -8,6 +8,7 @@ public class SectionEntity
     public string OriginalTitle { get; set; } = "";
     public string OriginalContent { get; set; } = "";
     public string? ImprovedContent { get; set; }
+    public string? BaselineContent { get; set; }
     public string? MatchedSection { get; set; }
     public string? Explanation { get; set; }
     public bool Unrecognised { get; set; }

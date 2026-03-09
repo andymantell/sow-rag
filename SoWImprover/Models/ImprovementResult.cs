@@ -22,6 +22,9 @@ public class SectionResult
     /// <summary>Improved body text. Null when the section was not recognised.</summary>
     public string? ImprovedContent { get; set; }
 
+    /// <summary>LLM-improved text without RAG context (baseline). Null when unrecognised.</summary>
+    public string? BaselineContent { get; set; }
+
     /// <summary>The canonical section name this was matched to. Null if unrecognised.</summary>
     public string? MatchedSection { get; init; }
 

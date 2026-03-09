@@ -43,8 +43,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"Introduction\": \"Scope of Work\"}", // matching
-                    2 => "Improved content here.",                 // improvement
-                    3 => "- Better structure\n- Clearer language", // explanation
+                    2 => "Baseline.",                              // baseline (no RAG)
+                    3 => "Improved content here.",                 // improvement
+                    4 => "- Better structure\n- Clearer language", // explanation
                     _ => ""
                 };
             });
@@ -57,6 +58,32 @@ public class SoWImproverServiceTests
         Assert.Equal("Improved content here.", result.Sections[0].ImprovedContent);
         Assert.Equal("Scope of Work", result.Sections[0].MatchedSection);
         Assert.Contains("Better structure", result.Sections[0].Explanation);
+    }
+
+    [Fact]
+    public async Task ImproveAsync_MatchedSection_GeneratesBaselineWithoutRag()
+    {
+        var callCount = 0;
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                callCount++;
+                return callCount switch
+                {
+                    1 => "{\"Introduction\": \"Scope of Work\"}", // matching
+                    2 => "Baseline content here.",                  // baseline (no RAG)
+                    3 => "RAG improved content here.",              // improvement (with RAG)
+                    4 => "- Better structure",                      // explanation
+                    _ => ""
+                };
+            });
+
+        var definition = CreateReadyDefinition();
+        var result = await _service.ImproveAsync("Some body text.", definition);
+
+        Assert.Single(result.Sections);
+        Assert.Equal("Baseline content here.", result.Sections[0].BaselineContent);
+        Assert.Equal("RAG improved content here.", result.Sections[0].ImprovedContent);
     }
 
     [Fact]
@@ -85,8 +112,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "```json\n{\"Introduction\": \"Scope of Work\"}\n```",
-                    2 => "```markdown\nImproved content.\n```",
-                    3 => "- Change one",
+                    2 => "Baseline.",
+                    3 => "```markdown\nImproved content.\n```",
+                    4 => "- Change one",
                     _ => ""
                 };
             });
@@ -108,8 +136,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"Introduction\": \"Scope of Work\"}",
-                    2 => "# Hallucinated Heading\n\nActual content here.",
-                    3 => "- Change",
+                    2 => "Baseline.",
+                    3 => "# Hallucinated Heading\n\nActual content here.",
+                    4 => "- Change",
                     _ => ""
                 };
             });
@@ -131,8 +160,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"SCOPE OF WORK\": \"Scope of Work\", \"RANDOM HEADING\": null}",
-                    2 => "Improved scope content.",
-                    3 => "- Better clarity",
+                    2 => "Baseline.",
+                    3 => "Improved scope content.",
+                    4 => "- Better clarity",
                     _ => ""
                 };
             });
@@ -168,8 +198,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"Introduction\": \"Scope of Work\"}",
-                    2 => "Improved.",
-                    3 => "- Change",
+                    2 => "Baseline.",
+                    3 => "Improved.",
+                    4 => "- Change",
                     _ => ""
                 };
             });
@@ -195,8 +226,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"Introduction\": \"Scope of Work\"}",
-                    2 => "Improved.",
-                    3 => "- Change",
+                    2 => "Baseline.",
+                    3 => "Improved.",
+                    4 => "- Change",
                     _ => ""
                 };
             });
@@ -220,8 +252,9 @@ public class SoWImproverServiceTests
                 return callCount switch
                 {
                     1 => "{\"Introduction\": \"Scope of Work\"}",
-                    2 => "Improved.",
-                    3 => "- Change",
+                    2 => "Baseline.",
+                    3 => "Improved.",
+                    4 => "- Change",
                     _ => ""
                 };
             });

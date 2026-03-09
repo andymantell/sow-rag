@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.FeatureManagement;
 using QuestPDF.Infrastructure;
 using SoWImprover.Components;
 using SoWImprover.Data;
@@ -26,6 +27,9 @@ builder.Services.AddHostedService<DefinitionGeneratorService>();
 // ── Database ────────────────────────────────────────────────────────────────
 builder.Services.AddDbContextFactory<SoWDbContext>(opts =>
     opts.UseSqlite("Data Source=sow-improver.db"));
+
+// ── Feature flags ────────────────────────────────────────────────────────────
+builder.Services.AddFeatureManagement();
 
 // ── Blazor ───────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()

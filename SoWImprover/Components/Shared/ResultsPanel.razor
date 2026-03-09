@@ -13,7 +13,8 @@
         <div class="diff-panels">
             <div class="diff-header-row">
                 <h2 class="diff-col-header govuk-heading-m">Original</h2>
-                <h2 class="diff-col-header govuk-heading-m">Improved</h2>
+                <h2 class="diff-col-header govuk-heading-m">Improved (no RAG)</h2>
+                <h2 class="diff-col-header govuk-heading-m">Improved (with RAG)</h2>
             </div>
 
             @* One row per section *@
@@ -37,22 +38,44 @@
                         }
                     </div>
 
-                    @* Right: improved / edit / preview *@
+                    @* Middle: baseline (no RAG) *@
+                    <div class="diff-col">
+                        <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                        @if (suppressed)
+                        {
+                            <p class="govuk-body app-suppressed-notice">
+                                Section excluded from output
+                            </p>
+                        }
+                        else if (sec.Unrecognised)
+                        {
+                            <p class="govuk-body govuk-body--secondary"><em>Section not recognised</em></p>
+                        }
+                        else
+                        {
+                            @rendered.BaselineHtml
+                        }
+                    </div>
+
+                    @* Right: improved (with RAG) / edit / preview *@
                     <div class="diff-col">
                         @if (suppressed)
                         {
                             <div class="diff-section-heading-row">
                                 <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                                <button class="govuk-button govuk-button--secondary app-section-btn"
-                                        @onclick="() => ToggleSection(idx)">
-                                    Include section
-                                </button>
+                                @if (ShowEditingFeatures)
+                                {
+                                    <button class="govuk-button govuk-button--secondary app-section-btn"
+                                            @onclick="() => ToggleSection(idx)">
+                                        Include section
+                                    </button>
+                                }
                             </div>
                             <p class="govuk-body app-suppressed-notice">
                                 Section excluded from output
                             </p>
                         }
-                        else if (isEditing)
+                        else if (ShowEditingFeatures && isEditing)
                         {
                             @* ── Edit mode ── *@
                             <div class="diff-section-heading-row">
@@ -89,45 +112,51 @@
                             @* ── View mode ── *@
                             <div class="diff-section-heading-row">
                                 <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                                <div class="app-section-actions">
-                                    <button class="govuk-button govuk-button--secondary app-section-btn"
-                                            disabled="@(_editorModule is null)"
-                                            @onclick="() => StartEditing(idx)">
-                                        Edit
-                                    </button>
-                                    <button class="govuk-button govuk-button--warning app-section-btn"
-                                            @onclick="() => ToggleSection(idx)">
-                                        Exclude section
-                                    </button>
-                                </div>
+                                @if (ShowEditingFeatures)
+                                {
+                                    <div class="app-section-actions">
+                                        <button class="govuk-button govuk-button--secondary app-section-btn"
+                                                disabled="@(_editorModule is null)"
+                                                @onclick="() => StartEditing(idx)">
+                                            Edit
+                                        </button>
+                                        <button class="govuk-button govuk-button--warning app-section-btn"
+                                                @onclick="() => ToggleSection(idx)">
+                                            Exclude section
+                                        </button>
+                                    </div>
+                                }
                             </div>
 
-                            @* ── Version switcher ── *@
-                            @if (VersionHistory.TryGetValue(idx, out var versions) && versions.Count > 1)
+                            @if (ShowEditingFeatures)
                             {
-                                var currentVersion = versions.Max(v => v.VersionNumber);
-                                var selectedVersion = (PreviewSectionIndex == idx && PreviewVersionNumber.HasValue)
-                                    ? PreviewVersionNumber.Value : currentVersion;
-                                <div class="app-version-switcher">
-                                    <select class="govuk-select app-version-select"
-                                            value="@selectedVersion"
-                                            @onchange="async (e) => { if (int.TryParse(e.Value?.ToString(), out var v)) await OnVersionSelectChanged(idx, v, currentVersion); }">
-                                        @foreach (var v in versions.OrderByDescending(x => x.VersionNumber))
+                                @* ── Version switcher ── *@
+                                @if (VersionHistory.TryGetValue(idx, out var versions) && versions.Count > 1)
+                                {
+                                    var currentVersion = versions.Max(v => v.VersionNumber);
+                                    var selectedVersion = (PreviewSectionIndex == idx && PreviewVersionNumber.HasValue)
+                                        ? PreviewVersionNumber.Value : currentVersion;
+                                    <div class="app-version-switcher">
+                                        <select class="govuk-select app-version-select"
+                                                value="@selectedVersion"
+                                                @onchange="async (e) => { if (int.TryParse(e.Value?.ToString(), out var v)) await OnVersionSelectChanged(idx, v, currentVersion); }">
+                                            @foreach (var v in versions.OrderByDescending(x => x.VersionNumber))
+                                            {
+                                                var label = v.VersionNumber == currentVersion
+                                                    ? $"Version {v.VersionNumber} (current)"
+                                                    : $"Version {v.VersionNumber} — {v.CreatedAt.ToLocalTime():d MMM yyyy HH:mm}";
+                                                <option value="@v.VersionNumber">@label</option>
+                                            }
+                                        </select>
+                                        @if (isPreviewing)
                                         {
-                                            var label = v.VersionNumber == currentVersion
-                                                ? $"Version {v.VersionNumber} (current)"
-                                                : $"Version {v.VersionNumber} — {v.CreatedAt.ToLocalTime():d MMM yyyy HH:mm}";
-                                            <option value="@v.VersionNumber">@label</option>
+                                            <button class="govuk-button govuk-button--secondary app-section-btn"
+                                                    @onclick="() => OnVersionRestored.InvokeAsync((idx, PreviewVersionNumber!.Value))">
+                                                Restore this version
+                                            </button>
                                         }
-                                    </select>
-                                    @if (isPreviewing)
-                                    {
-                                        <button class="govuk-button govuk-button--secondary app-section-btn"
-                                                @onclick="() => OnVersionRestored.InvokeAsync((idx, PreviewVersionNumber!.Value))">
-                                            Restore this version
-                                        </button>
-                                    }
-                                </div>
+                                    </div>
+                                }
                             }
 
                             @* ── Content area ── *@
@@ -165,7 +194,7 @@
                             else
                             {
                                 @* ── What-changed banner ── *@
-                                @if (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue)
+                                @if (ShowExplanations && (rendered.BulletHtml.Count > 0 || rendered.ExplanationHtml.HasValue))
                                 {
                                     var summaryText = "What changed" + (string.IsNullOrWhiteSpace(sec.MatchedSection) ? "" : $" (improved using {sec.MatchedSection})");
 
@@ -203,6 +232,8 @@
 
 @code {
     [Parameter] public ImprovementResult? Result { get; set; }
+    [Parameter] public bool ShowEditingFeatures { get; set; }
+    [Parameter] public bool ShowExplanations { get; set; }
     [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
     [Parameter] public EventCallback OnSuppressedChanged { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
@@ -216,6 +247,7 @@
 
     private record RenderedSection(
         MarkupString OriginalHtml,
+        MarkupString BaselineHtml,
         MarkupString ImprovedHtml,
         List<MarkupString> BulletHtml,
         MarkupString? ExplanationHtml);
@@ -228,7 +260,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && ShowEditingFeatures)
         {
             _editorModule = await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./Components/Shared/ResultsPanel.razor.js");
@@ -275,6 +307,7 @@
 
         return new RenderedSection(
             MarkdownRenderer.ToMarkupString(sec.OriginalContent),
+            MarkdownRenderer.ToMarkupString(sec.BaselineContent ?? ""),
             MarkdownRenderer.ToMarkupString(sec.ImprovedContent ?? ""),
             bullets,
             explanationHtml);

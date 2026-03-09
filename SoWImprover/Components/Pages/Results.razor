@@ -3,6 +3,7 @@
 @inject IDbContextFactory<SoWDbContext> DbFactory
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject Microsoft.FeatureManagement.IFeatureManager FeatureManager
 @implements IAsyncDisposable
 
 <div class="govuk-width-container">
@@ -11,13 +12,18 @@
         {
             <div class="app-results-toolbar">
                 <a href="/" class="govuk-back-link">Back</a>
-                <button class="govuk-button govuk-button--secondary"
-                        @onclick="DownloadPdfAsync"
-                        disabled="@_downloading">
-                    @(_downloading ? "Generating…" : "Download improved document")
-                </button>
+                @if (_showEditingFeatures)
+                {
+                    <button class="govuk-button govuk-button--secondary"
+                            @onclick="DownloadPdfAsync"
+                            disabled="@_downloading">
+                        @(_downloading ? "Generating…" : "Download improved document")
+                    </button>
+                }
             </div>
             <ResultsPanel Result="_result"
+                          ShowEditingFeatures="_showEditingFeatures"
+                          ShowExplanations="_showExplanations"
                           SuppressedSections="_suppressed"
                           OnSuppressedChanged="SaveSuppressedAsync"
                           OnSectionEdited="HandleSectionEdited"
@@ -35,6 +41,9 @@
 @code {
     [Parameter] public Guid DocumentId { get; set; }
 
+    private bool _showEditingFeatures;
+    private bool _showExplanations;
+
     private IJSObjectReference? _module;
     private bool _downloading;
     private ImprovementResult? _result;
@@ -49,6 +58,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _showEditingFeatures = await FeatureManager.IsEnabledAsync("EditingFeatures");
+        _showExplanations = await FeatureManager.IsEnabledAsync("Explanations");
+
         await using var db = await DbFactory.CreateDbContextAsync();
         _sections = await db.Sections
             .Where(s => s.DocumentId == DocumentId)
@@ -69,6 +81,7 @@
                 OriginalTitle = s.OriginalTitle,
                 OriginalContent = s.OriginalContent,
                 ImprovedContent = s.ImprovedContent,
+                BaselineContent = s.BaselineContent,
                 MatchedSection = s.MatchedSection,
                 Explanation = s.Explanation,
                 Unrecognised = s.Unrecognised,

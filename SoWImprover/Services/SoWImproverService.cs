@@ -54,9 +54,13 @@ public class SoWImproverService(
             improvedCount++;
             progress?.Report($"Improving: {section.Title} ({improvedCount} of {totalToImprove})");
             logger.LogInformation("Improving section '{Title}' → '{Canonical}'", section.Title, matchedName);
+
+            // Baseline: same prompt but no RAG context
+            var baseline = await ImproveSectionAsync(section, [], definedSection.Content, ct);
+
+            // RAG-enhanced: retrieve relevant chunks and improve
             var chunks = await definition.Retriever!.RetrieveAsync(section.Body, ct);
             allChunks.AddRange(chunks);
-
             var improved = await ImproveSectionAsync(section, chunks, definedSection.Content, ct);
             var explanation = await ExplainChangesAsync(section, improved, ct);
 
@@ -64,6 +68,7 @@ public class SoWImproverService(
             {
                 OriginalTitle = section.Title,
                 OriginalContent = section.Body,
+                BaselineContent = baseline,
                 ImprovedContent = improved,
                 MatchedSection = matchedName,
                 Explanation = explanation
