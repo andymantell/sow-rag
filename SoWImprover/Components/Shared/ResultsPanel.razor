@@ -32,25 +32,15 @@
                     @* Left: original *@
                     <div class="diff-col">
                         <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
-                        @if (!suppressed && !sec.Unrecognised)
+                        @if (!suppressed && !sec.Unrecognised && (EvaluatingSections.Contains(idx) || sec.OriginalQualityScore.HasValue))
                         {
-                            @if (EvaluatingSections.Contains(idx))
-                            {
-                                <div class="app-eval-spinner" aria-live="polite">
-                                    <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
-                                    <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
-                                </div>
-                            }
-                            else if (sec.OriginalQualityScore.HasValue)
-                            {
-                                <div class="app-score-badges">
-                                    <span class="app-score-badge">
-                                        Quality: <strong>@sec.OriginalQualityScore/5</strong>
-                                        <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
-                                        <span class="app-score-tooltip" role="tooltip">LLM-judged quality of the original content on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
-                                    </span>
-                                </div>
-                            }
+                            <div class="app-score-badges" aria-live="polite">
+                                <span class="app-score-badge" style="@BadgeStyle(sec.OriginalQualityScore, max: 5)">
+                                    Quality: @ScoreValueQuality(sec.OriginalQualityScore, EvaluatingSections.Contains(idx))
+                                    <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                    <span class="app-score-tooltip" role="tooltip">Baseline quality of the original SoW content before any LLM improvement, scored 1–5 against the definition of good. This is the starting point — compare it to the baseline and RAG columns to see how much each approach improved the section.</span>
+                                </span>
+                            </div>
                         }
                         @if (!suppressed)
                         {
@@ -73,32 +63,31 @@
                         }
                         else
                         {
-                            @if (EvaluatingSections.Contains(idx))
+                            var baselineEval = EvaluatingSections.Contains(idx);
+                            @if (baselineEval || sec.BaselineQualityScore.HasValue || sec.BaselineFaithfulnessScore.HasValue
+                                || sec.BaselineFactualCorrectnessScore.HasValue || sec.BaselineResponseRelevancyScore.HasValue)
                             {
-                                <div class="app-eval-spinner" aria-live="polite">
-                                    <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
-                                    <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
-                                </div>
-                            }
-                            else if (sec.BaselineQualityScore.HasValue || sec.BaselineFaithfulnessScore.HasValue)
-                            {
-                                <div class="app-score-badges">
-                                    @if (sec.BaselineQualityScore.HasValue)
-                                    {
-                                        <span class="app-score-badge">
-                                            Quality: <strong>@sec.BaselineQualityScore/5</strong>
-                                            <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
-                                            <span class="app-score-tooltip" role="tooltip">LLM-judged quality on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
-                                        </span>
-                                    }
-                                    @if (sec.BaselineFaithfulnessScore.HasValue)
-                                    {
-                                        <span class="app-score-badge">
-                                            Faithfulness: <strong>@($"{sec.BaselineFaithfulnessScore:F2}")</strong>
-                                            <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
-                                            <span class="app-score-tooltip" role="tooltip">Measures whether the improved text stays faithful to the original content (0–1). Higher means fewer hallucinated or invented claims.</span>
-                                        </span>
-                                    }
+                                <div class="app-score-badges" aria-live="polite">
+                                    <span class="app-score-badge" style="@BadgeStyle(sec.BaselineQualityScore, max: 5)">
+                                        Quality: @ScoreValueQuality(sec.BaselineQualityScore, baselineEval)
+                                        <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                        <span class="app-score-tooltip" role="tooltip">Quality of the prompt-only output (no RAG), scored 1–5 against the definition of good. Compare with the original and RAG columns to see whether adding reference documents produces higher quality improvements than the LLM alone.</span>
+                                    </span>
+                                    <span class="app-score-badge" style="@BadgeStyle(sec.BaselineFaithfulnessScore)">
+                                        Faithfulness: @ScoreValueDecimal(sec.BaselineFaithfulnessScore, baselineEval)
+                                        <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
+                                        <span class="app-score-tooltip" role="tooltip">Did the prompt-only LLM stay true to the original content (0–1)? Breaks the output into individual claims and checks each one against the original. A low score means the LLM hallucinated or invented content without RAG grounding. Compare with the RAG column to see if retrieved documents help reduce hallucination.</span>
+                                    </span>
+                                    <span class="app-score-badge" style="@BadgeStyle(sec.BaselineFactualCorrectnessScore)">
+                                        Factual correctness: @ScoreValueDecimal(sec.BaselineFactualCorrectnessScore, baselineEval)
+                                        <button type="button" class="app-score-info-btn" aria-label="About factual correctness score">?</button>
+                                        <span class="app-score-tooltip" role="tooltip">How accurately did the prompt-only output preserve the original facts (0–1 F1)? Decomposes both original and output into atomic claims, then measures precision (no invented facts) and recall (no lost facts). Compare with RAG to see if reference documents help the LLM retain more of the original information.</span>
+                                    </span>
+                                    <span class="app-score-badge" style="@BadgeStyle(sec.BaselineResponseRelevancyScore)">
+                                        Relevancy: @ScoreValueDecimal(sec.BaselineResponseRelevancyScore, baselineEval)
+                                        <button type="button" class="app-score-info-btn" aria-label="About response relevancy score">?</button>
+                                        <span class="app-score-tooltip" role="tooltip">Did the prompt-only output stay on-task (0–1)? Generates questions from the output and checks if they align with the original improvement request. A low score means the LLM went off-topic. Compare with RAG to see if reference documents help keep the output focused.</span>
+                                    </span>
                                 </div>
                             }
                             @rendered.BaselineHtml
@@ -267,40 +256,47 @@
                                         </div>
                                     </details>
                                 }
-                                @if (EvaluatingSections.Contains(idx))
+                                @if (EvaluatingSections.Contains(idx) || sec.RagQualityScore.HasValue || sec.RagFaithfulnessScore.HasValue || sec.ContextPrecisionScore.HasValue
+                                    || sec.RagFactualCorrectnessScore.HasValue || sec.ContextRecallScore.HasValue
+                                    || sec.RagResponseRelevancyScore.HasValue || sec.NoiseSensitivityScore.HasValue)
                                 {
-                                    <div class="app-eval-spinner" aria-live="polite">
-                                        <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
-                                        <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
-                                    </div>
-                                }
-                                else if (sec.RagQualityScore.HasValue || sec.RagFaithfulnessScore.HasValue || sec.ContextPrecisionScore.HasValue)
-                                {
-                                    <div class="app-score-badges">
-                                        @if (sec.RagQualityScore.HasValue)
-                                        {
-                                            <span class="app-score-badge">
-                                                Quality: <strong>@sec.RagQualityScore/5</strong>
-                                                <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
-                                                <span class="app-score-tooltip" role="tooltip">LLM-judged quality on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
-                                            </span>
-                                        }
-                                        @if (sec.RagFaithfulnessScore.HasValue)
-                                        {
-                                            <span class="app-score-badge">
-                                                Faithfulness: <strong>@($"{sec.RagFaithfulnessScore:F2}")</strong>
-                                                <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
-                                                <span class="app-score-tooltip" role="tooltip">Measures whether the improved text stays faithful to the original content (0–1). Higher means fewer hallucinated or invented claims.</span>
-                                            </span>
-                                        }
-                                        @if (sec.ContextPrecisionScore.HasValue)
-                                        {
-                                            <span class="app-score-badge">
-                                                Context precision: <strong>@($"{sec.ContextPrecisionScore:F2}")</strong>
-                                                <button type="button" class="app-score-info-btn" aria-label="About context precision score">?</button>
-                                                <span class="app-score-tooltip" role="tooltip">Measures how relevant the retrieved reference chunks were to the question (0–1). Higher means the retrieval found more useful material.</span>
-                                            </span>
-                                        }
+                                    var ragEval = EvaluatingSections.Contains(idx);
+                                    <div class="app-score-badges" aria-live="polite">
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.RagQualityScore, max: 5)">
+                                            Quality: @ScoreValueQuality(sec.RagQualityScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Quality of the RAG-enhanced output, scored 1–5 against the definition of good. This is the key comparison — if RAG is adding value, this score should be higher than both the original and the prompt-only baseline.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.RagFaithfulnessScore)">
+                                            Faithfulness: @ScoreValueDecimal(sec.RagFaithfulnessScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Did the RAG-enhanced output stay true to the original content (0–1)? Breaks the output into claims and checks each against the original. If this is higher than the baseline column, RAG is helping the LLM hallucinate less by grounding it with reference documents.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.RagFactualCorrectnessScore)">
+                                            Factual correctness: @ScoreValueDecimal(sec.RagFactualCorrectnessScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About factual correctness score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">How accurately did the RAG output preserve the original facts (0–1 F1)? Decomposes both texts into atomic claims, measuring precision (nothing invented) and recall (nothing lost). Higher than baseline means RAG helped retain more original information while adding fewer fabrications.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.RagResponseRelevancyScore)">
+                                            Relevancy: @ScoreValueDecimal(sec.RagResponseRelevancyScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About response relevancy score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Did the RAG output stay on-task (0–1)? Generates questions from the output and checks if they match the original improvement request. If lower than baseline, the retrieved documents may be distracting the LLM from the core task.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.ContextPrecisionScore)">
+                                            Context precision: @ScoreValueDecimal(sec.ContextPrecisionScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About context precision score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Were the retrieved reference chunks actually relevant (0–1)? Evaluates each chunk the retriever found and checks whether it was useful for improving this section. A low score means the retriever is pulling in irrelevant material, which may explain poor RAG performance.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.ContextRecallScore)">
+                                            Context recall: @ScoreValueDecimal(sec.ContextRecallScore, ragEval)
+                                            <button type="button" class="app-score-info-btn" aria-label="About context recall score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Did retrieval find everything it needed (0–1)? Checks whether the retrieved chunks cover all the important information from the original section. A low score means the retriever missed relevant reference material — the corpus may need more documents, or the chunking/embedding strategy needs tuning.</span>
+                                        </span>
+                                        <span class="app-score-badge" style="@BadgeStyle(sec.NoiseSensitivityScore, lowerIsBetter: true)">
+                                            Noise sensitivity: @ScoreValueDecimal(sec.NoiseSensitivityScore, ragEval, lowerIsBetter: true)
+                                            <button type="button" class="app-score-info-btn" aria-label="About noise sensitivity score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Is irrelevant retrieved content actively harming the output (0–1)? Lower is better. Checks whether incorrect claims in the output can be traced back to irrelevant chunks. A high score means the retriever is injecting noise that the LLM is then incorporating — this is where RAG can perform worse than prompt-only.</span>
+                                        </span>
                                     </div>
                                 }
                                 @rendered.ImprovedHtml
@@ -320,7 +316,6 @@
     [Parameter] public bool ShowExplanations { get; set; }
     [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
     [Parameter] public HashSet<int> EvaluatingSections { get; set; } = [];
-    [Parameter] public string? EvaluationMessage { get; set; }
     [Parameter] public EventCallback OnSuppressedChanged { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionRestored { get; set; }
@@ -398,6 +393,72 @@
             bullets,
             explanationHtml);
     }
+
+    /// <summary>Returns inline badge style: coloured when value present, neutral grey when loading/error.</summary>
+    private static string BadgeStyle(double? score, bool lowerIsBetter = false, double max = 1.0)
+    {
+        if (!score.HasValue)
+            return "";
+        var normalised = Math.Clamp(score.Value / max, 0.0, 1.0);
+        if (lowerIsBetter) normalised = 1.0 - normalised;
+        var hue = (int)(normalised * 120);
+        return $"background:hsl({hue},55%,88%);border-color:hsl({hue},35%,72%)";
+    }
+
+    private static string BadgeStyle(int? score, double max = 5.0)
+        => BadgeStyle(score.HasValue ? (double)score.Value : null, max: max);
+
+    /// <summary>Renders score value for 1-5 quality badges: spinner, value, or error cross.</summary>
+    private static RenderFragment ScoreValueQuality(int? score, bool evaluating) => builder =>
+    {
+        if (score.HasValue)
+        {
+            builder.OpenElement(0, "strong");
+            builder.AddContent(1, $"{score}/5");
+            builder.CloseElement();
+        }
+        else if (evaluating)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "app-badge-spinner");
+            builder.AddAttribute(2, "aria-label", "Loading");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "app-badge-error");
+            builder.AddAttribute(2, "title", "Scoring failed");
+            builder.AddContent(3, "\u2717");
+            builder.CloseElement();
+        }
+    };
+
+    /// <summary>Renders score value for 0-1 decimal badges: spinner, value, or error cross.</summary>
+    private static RenderFragment ScoreValueDecimal(double? score, bool evaluating, bool lowerIsBetter = false) => builder =>
+    {
+        if (score.HasValue)
+        {
+            builder.OpenElement(0, "strong");
+            builder.AddContent(1, $"{score:F2}");
+            builder.CloseElement();
+        }
+        else if (evaluating)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "app-badge-spinner");
+            builder.AddAttribute(2, "aria-label", "Loading");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "app-badge-error");
+            builder.AddAttribute(2, "title", "Scoring failed");
+            builder.AddContent(3, "\u2717");
+            builder.CloseElement();
+        }
+    };
 
     private void UpdateRenderedSection(int index)
     {

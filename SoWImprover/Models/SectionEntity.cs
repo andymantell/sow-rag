@@ -19,6 +19,12 @@ public class SectionEntity
     public double? BaselineFaithfulnessScore { get; set; }
     public double? RagFaithfulnessScore { get; set; }
     public double? ContextPrecisionScore { get; set; }
+    public double? ContextRecallScore { get; set; }
+    public double? BaselineFactualCorrectnessScore { get; set; }
+    public double? RagFactualCorrectnessScore { get; set; }
+    public double? BaselineResponseRelevancyScore { get; set; }
+    public double? RagResponseRelevancyScore { get; set; }
+    public double? NoiseSensitivityScore { get; set; }
 
     /// <summary>JSON-serialised list of retrieved chunk texts, for evaluation. Null if unrecognised.</summary>
     public string? RetrievedContextsJson { get; set; }

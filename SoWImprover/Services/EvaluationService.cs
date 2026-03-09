@@ -44,6 +44,24 @@ public class EvaluationService(
 
         [JsonPropertyName("context_precision")]
         public double? ContextPrecisionScore { get; init; }
+
+        [JsonPropertyName("context_recall")]
+        public double? ContextRecallScore { get; init; }
+
+        [JsonPropertyName("baseline_factual_correctness")]
+        public double? BaselineFactualCorrectnessScore { get; init; }
+
+        [JsonPropertyName("rag_factual_correctness")]
+        public double? RagFactualCorrectnessScore { get; init; }
+
+        [JsonPropertyName("baseline_response_relevancy")]
+        public double? BaselineResponseRelevancyScore { get; init; }
+
+        [JsonPropertyName("rag_response_relevancy")]
+        public double? RagResponseRelevancyScore { get; init; }
+
+        [JsonPropertyName("noise_sensitivity")]
+        public double? NoiseSensitivityScore { get; init; }
     }
 
     /// <summary>
@@ -58,7 +76,9 @@ public class EvaluationService(
             ?? throw new InvalidOperationException("Evaluation:Endpoint not configured in appsettings.json");
         var modelId = configuration["Evaluation:ModelName"]
             ?? throw new InvalidOperationException("Evaluation:ModelName not configured in appsettings.json");
-        var inputJson = BuildInputJson(endpoint, modelId, sections);
+        var embeddingModelId = configuration["Evaluation:EmbeddingModelName"]
+            ?? configuration["Ollama:EmbeddingModelName"];
+        var inputJson = BuildInputJson(endpoint, modelId, sections, embeddingModelId);
 
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "ragas_evaluate.py");
         if (!File.Exists(scriptPath))
@@ -124,12 +144,14 @@ public class EvaluationService(
     }
 
     internal static string BuildInputJson(
-        string endpoint, string modelId, List<SectionInput> sections)
+        string endpoint, string modelId, List<SectionInput> sections,
+        string? embeddingModelId = null)
     {
         var input = new
         {
             Endpoint = endpoint,
             ModelId = modelId,
+            EmbeddingModelId = embeddingModelId,
             Sections = sections
         };
         return JsonSerializer.Serialize(input, JsonOpts);
@@ -184,6 +206,18 @@ public class EvaluationService(
             ? rf.GetDouble() : null,
         ContextPrecisionScore = el.TryGetProperty("context_precision", out var cp) && cp.ValueKind != JsonValueKind.Null
             ? cp.GetDouble() : null,
+        ContextRecallScore = el.TryGetProperty("context_recall", out var cr) && cr.ValueKind != JsonValueKind.Null
+            ? cr.GetDouble() : null,
+        BaselineFactualCorrectnessScore = el.TryGetProperty("baseline_factual_correctness", out var bfc) && bfc.ValueKind != JsonValueKind.Null
+            ? bfc.GetDouble() : null,
+        RagFactualCorrectnessScore = el.TryGetProperty("rag_factual_correctness", out var rfc) && rfc.ValueKind != JsonValueKind.Null
+            ? rfc.GetDouble() : null,
+        BaselineResponseRelevancyScore = el.TryGetProperty("baseline_response_relevancy", out var brr) && brr.ValueKind != JsonValueKind.Null
+            ? brr.GetDouble() : null,
+        RagResponseRelevancyScore = el.TryGetProperty("rag_response_relevancy", out var rrr) && rrr.ValueKind != JsonValueKind.Null
+            ? rrr.GetDouble() : null,
+        NoiseSensitivityScore = el.TryGetProperty("noise_sensitivity", out var ns) && ns.ValueKind != JsonValueKind.Null
+            ? ns.GetDouble() : null,
     };
 
     private static string FindPython()

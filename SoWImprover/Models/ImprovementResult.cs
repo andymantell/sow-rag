@@ -55,6 +55,24 @@ public class SectionResult
     /// <summary>Context precision score (0-1) for RAG retrieval. Null if not evaluated or no chunks.</summary>
     public double? ContextPrecisionScore { get; set; }
 
+    /// <summary>Context recall score (0-1) for RAG retrieval. Measures how much relevant info was retrieved.</summary>
+    public double? ContextRecallScore { get; set; }
+
+    /// <summary>Factual correctness (0-1 F1) of the baseline output vs original content.</summary>
+    public double? BaselineFactualCorrectnessScore { get; set; }
+
+    /// <summary>Factual correctness (0-1 F1) of the RAG output vs original content.</summary>
+    public double? RagFactualCorrectnessScore { get; set; }
+
+    /// <summary>Response relevancy (0-1) of the baseline output to the task.</summary>
+    public double? BaselineResponseRelevancyScore { get; set; }
+
+    /// <summary>Response relevancy (0-1) of the RAG output to the task.</summary>
+    public double? RagResponseRelevancyScore { get; set; }
+
+    /// <summary>Noise sensitivity (0-1, lower is better) — how much irrelevant chunks harmed RAG output.</summary>
+    public double? NoiseSensitivityScore { get; set; }
+
     /// <summary>Retrieved chunk texts used for RAG improvement. Not persisted — used for evaluation only.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public List<string>? RetrievedContexts { get; set; }

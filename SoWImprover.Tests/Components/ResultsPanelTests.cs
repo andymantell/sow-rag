@@ -95,7 +95,7 @@ public class ResultsPanelTests : BunitContext
     // ── Tooltip rendering ────────────────────────────────────────
 
     [Fact]
-    public void ScoreBadges_QualityTooltip_ExplainsRubric()
+    public void ScoreBadges_QualityTooltip_ExplainsContext()
     {
         var result = MakeResult(s => s.OriginalQualityScore = 3);
 
@@ -104,12 +104,12 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowEditingFeatures, false)
             .Add(x => x.ShowExplanations, false));
 
-        Assert.Contains("rubric", cut.Markup);
+        Assert.Contains("starting point", cut.Markup);
         Assert.Contains("role=\"tooltip\"", cut.Markup);
     }
 
     [Fact]
-    public void ScoreBadges_FaithfulnessTooltip_ExplainsFidelity()
+    public void ScoreBadges_FaithfulnessTooltip_ExplainsHallucination()
     {
         var result = MakeResult(s => s.BaselineFaithfulnessScore = 0.9);
 
@@ -118,7 +118,7 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowEditingFeatures, false)
             .Add(x => x.ShowExplanations, false));
 
-        Assert.Contains("faithful to the original", cut.Markup);
+        Assert.Contains("hallucinated", cut.Markup);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowEditingFeatures, false)
             .Add(x => x.ShowExplanations, false));
 
-        Assert.Contains("retrieved reference chunks", cut.Markup);
+        Assert.Contains("retriever", cut.Markup);
     }
 
     [Fact]
@@ -148,28 +148,10 @@ public class ResultsPanelTests : BunitContext
         Assert.Contains("app-score-info-btn", cut.Markup);
     }
 
-    // ── Evaluation spinner ───────────────────────────────────────
+    // ── Inline badge loading state ──────────────────────────────
 
     [Fact]
-    public void EvalSpinner_ShowsOuroborosWhenEvaluating()
-    {
-        var result = MakeResult();
-        var evaluating = new HashSet<int> { 0 };
-
-        var cut = Render<ResultsPanel>(p => p
-            .Add(x => x.Result, result)
-            .Add(x => x.ShowEditingFeatures, false)
-            .Add(x => x.ShowExplanations, false)
-            .Add(x => x.EvaluatingSections, evaluating)
-            .Add(x => x.EvaluationMessage, "Scoring section 1 of 3…"));
-
-        Assert.Contains("app-ouroboros", cut.Markup);
-        Assert.Contains("ouroboros.png", cut.Markup);
-        Assert.Contains("Scoring section 1 of 3", cut.Markup);
-    }
-
-    [Fact]
-    public void EvalSpinner_DefaultMessage_WhenNoEvaluationMessage()
+    public void EvalLoading_ShowsInlineSpinnersWhenEvaluating()
     {
         var result = MakeResult();
         var evaluating = new HashSet<int> { 0 };
@@ -180,11 +162,13 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowExplanations, false)
             .Add(x => x.EvaluatingSections, evaluating));
 
-        Assert.Contains("Evaluating", cut.Markup);
+        // All badges should appear with inline spinners
+        Assert.Contains("app-badge-spinner", cut.Markup);
+        Assert.Contains("app-score-badge", cut.Markup);
     }
 
     [Fact]
-    public void EvalSpinner_NotShown_WhenNotEvaluating()
+    public void EvalLoading_NoSpinnersWhenNotEvaluating()
     {
         var result = MakeResult();
 
@@ -194,12 +178,11 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowExplanations, false)
             .Add(x => x.EvaluatingSections, new HashSet<int>()));
 
-        Assert.DoesNotContain("app-ouroboros", cut.Markup);
-        Assert.DoesNotContain("app-eval-spinner", cut.Markup);
+        Assert.DoesNotContain("app-badge-spinner", cut.Markup);
     }
 
     [Fact]
-    public void EvalSpinner_OuroborosImage_HasAccessibilityAttributes()
+    public void EvalLoading_BadgesHaveAriaLiveForUpdates()
     {
         var result = MakeResult();
         var evaluating = new HashSet<int> { 0 };
@@ -210,14 +193,11 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowExplanations, false)
             .Add(x => x.EvaluatingSections, evaluating));
 
-        Assert.Contains("aria-hidden=\"true\"", cut.Markup);
         Assert.Contains("aria-live=\"polite\"", cut.Markup);
     }
 
-    // ── Spinner shown on all three columns ───────────────────────
-
     [Fact]
-    public void EvalSpinner_AppearsInAllThreeColumns()
+    public void EvalLoading_AllThreeColumnsShowBadges()
     {
         var result = MakeResult();
         var evaluating = new HashSet<int> { 0 };
@@ -228,10 +208,57 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowExplanations, false)
             .Add(x => x.EvaluatingSections, evaluating));
 
-        // Count occurrences of the ouroboros image — should be 3 (one per column)
+        // Should have badge containers in all 3 columns
         var markup = cut.Markup;
-        var count = CountOccurrences(markup, "app-ouroboros");
+        var count = CountOccurrences(markup, "app-score-badges");
         Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public void EvalLoading_PartialScores_ShowValuesAndSpinners()
+    {
+        var result = MakeResult(s =>
+        {
+            s.RagQualityScore = 4;
+            s.BaselineQualityScore = 3;
+            s.OriginalQualityScore = 2;
+        });
+        var evaluating = new HashSet<int> { 0 };
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.EvaluatingSections, evaluating));
+
+        // Scores that arrived should show values
+        Assert.Contains("4/5", cut.Markup);
+        Assert.Contains("3/5", cut.Markup);
+        Assert.Contains("2/5", cut.Markup);
+        // Scores not yet arrived should show spinners
+        Assert.Contains("app-badge-spinner", cut.Markup);
+    }
+
+    // ── Error cross when scoring fails ─────────────────────────
+
+    [Fact]
+    public void EvalError_ShowsErrorCrossWhenScoreIsNull()
+    {
+        // Simulate: evaluation complete (not in evaluating set) but some scores null
+        var result = MakeResult(s =>
+        {
+            s.RagQualityScore = 4;
+            // Other scores left null = failed
+        });
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.EvaluatingSections, new HashSet<int>()));
+
+        Assert.Contains("app-badge-error", cut.Markup);
+        Assert.Contains("Scoring failed", cut.Markup);
     }
 
     // ── Unrecognised sections don't show scores ──────────────────
@@ -296,6 +323,136 @@ public class ResultsPanelTests : BunitContext
             .Add(x => x.ShowExplanations, false));
 
         Assert.Contains("1.00", cut.Markup);
+    }
+
+    // ── New metric badges ──────────────────────────────────────
+
+    [Fact]
+    public void ScoreBadges_FactualCorrectness_RendersInBaselineColumn()
+    {
+        var result = MakeResult(s => s.BaselineFactualCorrectnessScore = 0.92);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Factual correctness:", cut.Markup);
+        Assert.Contains("0.92", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_FactualCorrectness_RendersInRagColumn()
+    {
+        var result = MakeResult(s => s.RagFactualCorrectnessScore = 0.88);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Factual correctness:", cut.Markup);
+        Assert.Contains("0.88", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_FactualCorrectnessTooltip_ExplainsClaims()
+    {
+        var result = MakeResult(s => s.RagFactualCorrectnessScore = 0.9);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("atomic claims", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_ContextRecall_RendersInRagColumn()
+    {
+        var result = MakeResult(s => s.ContextRecallScore = 0.85);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Context recall:", cut.Markup);
+        Assert.Contains("0.85", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_ContextRecallTooltip_ExplainsRetrieval()
+    {
+        var result = MakeResult(s => s.ContextRecallScore = 0.7);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("retriever missed", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_ResponseRelevancy_RendersInBothColumns()
+    {
+        var result = MakeResult(s =>
+        {
+            s.BaselineResponseRelevancyScore = 0.75;
+            s.RagResponseRelevancyScore = 0.82;
+        });
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Relevancy:", cut.Markup);
+        Assert.Contains("0.75", cut.Markup);
+        Assert.Contains("0.82", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_ResponseRelevancyTooltip_ExplainsTask()
+    {
+        var result = MakeResult(s => s.RagResponseRelevancyScore = 0.8);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("on-task", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_NoiseSensitivity_RendersInRagColumn()
+    {
+        var result = MakeResult(s => s.NoiseSensitivityScore = 0.15);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Noise sensitivity:", cut.Markup);
+        Assert.Contains("0.15", cut.Markup);
+    }
+
+    [Fact]
+    public void ScoreBadges_NoiseSensitivityTooltip_ExplainsLowerIsBetter()
+    {
+        var result = MakeResult(s => s.NoiseSensitivityScore = 0.3);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Lower is better", cut.Markup);
+        Assert.Contains("noise", cut.Markup);
     }
 
     private static int CountOccurrences(string text, string pattern)

@@ -28,7 +28,6 @@
                           ShowExplanations="_showExplanations"
                           SuppressedSections="_suppressed"
                           EvaluatingSections="_evaluatingSections"
-                          EvaluationMessage="@_evaluationMessage"
                           OnSuppressedChanged="SaveSuppressedAsync"
                           OnSectionEdited="HandleSectionEdited"
                           OnVersionRestored="HandleVersionRestored"
@@ -62,7 +61,6 @@
 
     // Evaluation state
     private readonly HashSet<int> _evaluatingSections = [];
-    private string? _evaluationMessage;
     private CancellationTokenSource? _evalCts;
 
     protected override async Task OnInitializedAsync()
@@ -100,7 +98,13 @@
                 RagQualityScore = s.RagQualityScore,
                 BaselineFaithfulnessScore = s.BaselineFaithfulnessScore,
                 RagFaithfulnessScore = s.RagFaithfulnessScore,
-                ContextPrecisionScore = s.ContextPrecisionScore
+                ContextPrecisionScore = s.ContextPrecisionScore,
+                ContextRecallScore = s.ContextRecallScore,
+                BaselineFactualCorrectnessScore = s.BaselineFactualCorrectnessScore,
+                RagFactualCorrectnessScore = s.RagFactualCorrectnessScore,
+                BaselineResponseRelevancyScore = s.BaselineResponseRelevancyScore,
+                RagResponseRelevancyScore = s.RagResponseRelevancyScore,
+                NoiseSensitivityScore = s.NoiseSensitivityScore
             }).ToList()
         };
 
@@ -163,51 +167,55 @@
         // Mark all as evaluating
         foreach (var (idx, _) in toEvaluate)
             _evaluatingSections.Add(idx);
-        _evaluationMessage = $"Scoring section 1 of {toEvaluate.Count}…";
+
         await InvokeAsync(StateHasChanged);
 
         _evalCts = new CancellationTokenSource();
         try
         {
             var completed = 0;
+            int? prevStreamIdx = null;
+
             await foreach (var (streamIdx, scores) in Evaluator.EvaluateStreamingAsync(evalInputs, _evalCts.Token))
             {
                 if (streamIdx < 0 || streamIdx >= toEvaluate.Count) continue;
+
+                // When we move to a new section, mark the previous one complete
+                if (prevStreamIdx.HasValue && prevStreamIdx.Value != streamIdx)
+                {
+                    var (prevResultIdx, prevEntity) = toEvaluate[prevStreamIdx.Value];
+                    await PersistScoresAsync(prevEntity, _result.Sections[prevResultIdx]);
+                    _evaluatingSections.Remove(prevResultIdx);
+                    completed++;
+                }
+                prevStreamIdx = streamIdx;
+
                 var (resultIdx, entity) = toEvaluate[streamIdx];
-
-                // Update in-memory result
                 var sec = _result.Sections[resultIdx];
-                sec.OriginalQualityScore = scores.OriginalQualityScore;
-                sec.BaselineQualityScore = scores.BaselineQualityScore;
-                sec.RagQualityScore = scores.RagQualityScore;
-                sec.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore;
-                sec.RagFaithfulnessScore = scores.RagFaithfulnessScore;
-                sec.ContextPrecisionScore = scores.ContextPrecisionScore;
 
-                // Persist to DB
-                entity.OriginalQualityScore = scores.OriginalQualityScore;
-                entity.BaselineQualityScore = scores.BaselineQualityScore;
-                entity.RagQualityScore = scores.RagQualityScore;
-                entity.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore;
-                entity.RagFaithfulnessScore = scores.RagFaithfulnessScore;
-                entity.ContextPrecisionScore = scores.ContextPrecisionScore;
+                // Merge scores — only overwrite with non-null values from this partial update
+                sec.OriginalQualityScore = scores.OriginalQualityScore ?? sec.OriginalQualityScore;
+                sec.BaselineQualityScore = scores.BaselineQualityScore ?? sec.BaselineQualityScore;
+                sec.RagQualityScore = scores.RagQualityScore ?? sec.RagQualityScore;
+                sec.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore ?? sec.BaselineFaithfulnessScore;
+                sec.RagFaithfulnessScore = scores.RagFaithfulnessScore ?? sec.RagFaithfulnessScore;
+                sec.ContextPrecisionScore = scores.ContextPrecisionScore ?? sec.ContextPrecisionScore;
+                sec.ContextRecallScore = scores.ContextRecallScore ?? sec.ContextRecallScore;
+                sec.BaselineFactualCorrectnessScore = scores.BaselineFactualCorrectnessScore ?? sec.BaselineFactualCorrectnessScore;
+                sec.RagFactualCorrectnessScore = scores.RagFactualCorrectnessScore ?? sec.RagFactualCorrectnessScore;
+                sec.BaselineResponseRelevancyScore = scores.BaselineResponseRelevancyScore ?? sec.BaselineResponseRelevancyScore;
+                sec.RagResponseRelevancyScore = scores.RagResponseRelevancyScore ?? sec.RagResponseRelevancyScore;
+                sec.NoiseSensitivityScore = scores.NoiseSensitivityScore ?? sec.NoiseSensitivityScore;
 
-                await using var db = await DbFactory.CreateDbContextAsync();
-                db.Attach(entity);
-                db.Entry(entity).Property(s => s.OriginalQualityScore).IsModified = true;
-                db.Entry(entity).Property(s => s.BaselineQualityScore).IsModified = true;
-                db.Entry(entity).Property(s => s.RagQualityScore).IsModified = true;
-                db.Entry(entity).Property(s => s.BaselineFaithfulnessScore).IsModified = true;
-                db.Entry(entity).Property(s => s.RagFaithfulnessScore).IsModified = true;
-                db.Entry(entity).Property(s => s.ContextPrecisionScore).IsModified = true;
-                await db.SaveChangesAsync();
-
-                _evaluatingSections.Remove(resultIdx);
-                completed++;
-                _evaluationMessage = completed < toEvaluate.Count
-                    ? $"Scoring section {completed + 1} of {toEvaluate.Count}…"
-                    : null;
                 await InvokeAsync(StateHasChanged);
+            }
+
+            // Persist and complete the last section
+            if (prevStreamIdx.HasValue)
+            {
+                var (lastResultIdx, lastEntity) = toEvaluate[prevStreamIdx.Value];
+                await PersistScoresAsync(lastEntity, _result.Sections[lastResultIdx]);
+                _evaluatingSections.Remove(lastResultIdx);
             }
         }
         catch (Exception ex)
@@ -217,7 +225,6 @@
         finally
         {
             _evaluatingSections.Clear();
-            _evaluationMessage = null;
             await InvokeAsync(StateHasChanged);
             _evalCts?.Dispose();
             _evalCts = null;
@@ -275,6 +282,38 @@
             _previewVersionNumber = args.VersionNumber;
             _previewContent = version.Content;
         }
+    }
+
+    private async Task PersistScoresAsync(SectionEntity entity, SectionResult sec)
+    {
+        entity.OriginalQualityScore = sec.OriginalQualityScore;
+        entity.BaselineQualityScore = sec.BaselineQualityScore;
+        entity.RagQualityScore = sec.RagQualityScore;
+        entity.BaselineFaithfulnessScore = sec.BaselineFaithfulnessScore;
+        entity.RagFaithfulnessScore = sec.RagFaithfulnessScore;
+        entity.ContextPrecisionScore = sec.ContextPrecisionScore;
+        entity.ContextRecallScore = sec.ContextRecallScore;
+        entity.BaselineFactualCorrectnessScore = sec.BaselineFactualCorrectnessScore;
+        entity.RagFactualCorrectnessScore = sec.RagFactualCorrectnessScore;
+        entity.BaselineResponseRelevancyScore = sec.BaselineResponseRelevancyScore;
+        entity.RagResponseRelevancyScore = sec.RagResponseRelevancyScore;
+        entity.NoiseSensitivityScore = sec.NoiseSensitivityScore;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Attach(entity);
+        db.Entry(entity).Property(s => s.OriginalQualityScore).IsModified = true;
+        db.Entry(entity).Property(s => s.BaselineQualityScore).IsModified = true;
+        db.Entry(entity).Property(s => s.RagQualityScore).IsModified = true;
+        db.Entry(entity).Property(s => s.BaselineFaithfulnessScore).IsModified = true;
+        db.Entry(entity).Property(s => s.RagFaithfulnessScore).IsModified = true;
+        db.Entry(entity).Property(s => s.ContextPrecisionScore).IsModified = true;
+        db.Entry(entity).Property(s => s.ContextRecallScore).IsModified = true;
+        db.Entry(entity).Property(s => s.BaselineFactualCorrectnessScore).IsModified = true;
+        db.Entry(entity).Property(s => s.RagFactualCorrectnessScore).IsModified = true;
+        db.Entry(entity).Property(s => s.BaselineResponseRelevancyScore).IsModified = true;
+        db.Entry(entity).Property(s => s.RagResponseRelevancyScore).IsModified = true;
+        db.Entry(entity).Property(s => s.NoiseSensitivityScore).IsModified = true;
+        await db.SaveChangesAsync();
     }
 
     private void ClearPreview()

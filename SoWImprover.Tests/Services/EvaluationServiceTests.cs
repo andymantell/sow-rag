@@ -119,9 +119,9 @@ public class EvaluationServiceTests
     }
 
     [Fact]
-    public void ParseSingleResult_IncludesOriginalQualityScore()
+    public void ParseSingleResult_IncludesAllScoreFields()
     {
-        var line = """{"index": 0, "original_quality": 2, "baseline_quality": 3, "rag_quality": 4, "baseline_faithfulness": 0.8, "rag_faithfulness": 0.9, "context_precision": 0.7}""";
+        var line = """{"index": 0, "original_quality": 2, "baseline_quality": 3, "rag_quality": 4, "baseline_faithfulness": 0.8, "rag_faithfulness": 0.9, "context_precision": 0.7, "context_recall": 0.85, "baseline_factual_correctness": 0.92, "rag_factual_correctness": 0.88, "baseline_response_relevancy": 0.75, "rag_response_relevancy": 0.82, "noise_sensitivity": 0.15}""";
 
         var result = EvaluationService.ParseSingleResult(line);
 
@@ -132,6 +132,12 @@ public class EvaluationServiceTests
         Assert.Equal(0.8, result.Value.Scores.BaselineFaithfulnessScore);
         Assert.Equal(0.9, result.Value.Scores.RagFaithfulnessScore);
         Assert.Equal(0.7, result.Value.Scores.ContextPrecisionScore);
+        Assert.Equal(0.85, result.Value.Scores.ContextRecallScore);
+        Assert.Equal(0.92, result.Value.Scores.BaselineFactualCorrectnessScore);
+        Assert.Equal(0.88, result.Value.Scores.RagFactualCorrectnessScore);
+        Assert.Equal(0.75, result.Value.Scores.BaselineResponseRelevancyScore);
+        Assert.Equal(0.82, result.Value.Scores.RagResponseRelevancyScore);
+        Assert.Equal(0.15, result.Value.Scores.NoiseSensitivityScore);
     }
 
     [Fact]
@@ -214,6 +220,30 @@ public class EvaluationServiceTests
         Assert.Contains("\"rag_improved\"", json);
         Assert.Contains("\"retrieved_contexts\"", json);
         Assert.Contains("\"definition_of_good\"", json);
+    }
+
+    [Fact]
+    public void BuildInputJson_IncludesEmbeddingModelId()
+    {
+        var sections = new List<EvaluationService.SectionInput> { new() };
+
+        var json = EvaluationService.BuildInputJson(
+            "http://localhost:11434/v1", "mistral:7b", sections, "nomic-embed-text");
+
+        Assert.Contains("\"embedding_model_id\"", json);
+        Assert.Contains("nomic-embed-text", json);
+    }
+
+    [Fact]
+    public void BuildInputJson_NullEmbeddingModelId_OmittedFromJson()
+    {
+        var sections = new List<EvaluationService.SectionInput> { new() };
+
+        var json = EvaluationService.BuildInputJson(
+            "http://localhost:11434/v1", "mistral:7b", sections, null);
+
+        // With WhenWritingNull, null values are omitted
+        Assert.DoesNotContain("\"embedding_model_id\"", json);
     }
 
     [Fact]

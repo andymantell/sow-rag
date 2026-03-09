@@ -57,15 +57,24 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Pixel-art ouroboros loading animation ────────────────── */
-.app-ouroboros {
-  flex-shrink: 0;
-  animation: ouro-spin 3s linear infinite, ouro-pulse 1.5s ease-in-out infinite;
+/* ── Inline badge spinner (shows inside badge while score loads) ── */
+.app-badge-spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid #b1b4b6;
+  border-top-color: #505a5f;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
 }
-@keyframes ouro-spin { to { transform: rotate(360deg); } }
-@keyframes ouro-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+
+/* ── Inline badge error (shows when scoring failed) ── */
+.app-badge-error {
+  color: #d4351c;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
 }
 
 /* ── Results toolbar ─────────────────────────────────────── */
@@ -371,22 +380,6 @@ del {
 .app-score-badge:hover .app-score-tooltip,
 .app-score-info-btn:focus + .app-score-tooltip {
   display: block;
-}
-
-/* ── Per-section evaluation spinner ──────────────────────── */
-.app-eval-spinner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 8px 10px;
-  background: #f3f2f1;
-  border: 1px solid #b1b4b6;
-  border-radius: 3px;
-}
-.app-eval-spinner .govuk-body-s {
-  margin-bottom: 0;
-  color: #505a5f;
 }
 
 /* ── Responsive: stack diff panels on narrow screens ────── */
