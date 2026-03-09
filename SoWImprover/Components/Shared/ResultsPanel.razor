@@ -32,6 +32,26 @@
                     @* Left: original *@
                     <div class="diff-col">
                         <h3 class="diff-section-heading">@sec.OriginalTitle</h3>
+                        @if (!suppressed && !sec.Unrecognised)
+                        {
+                            @if (EvaluatingSections.Contains(idx))
+                            {
+                                <div class="app-eval-spinner" aria-live="polite">
+                                    <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
+                                    <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
+                                </div>
+                            }
+                            else if (sec.OriginalQualityScore.HasValue)
+                            {
+                                <div class="app-score-badges">
+                                    <span class="app-score-badge">
+                                        Quality: <strong>@sec.OriginalQualityScore/5</strong>
+                                        <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                        <span class="app-score-tooltip" role="tooltip">LLM-judged quality of the original content on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
+                                    </span>
+                                </div>
+                            }
+                        }
                         @if (!suppressed)
                         {
                             @rendered.OriginalHtml
@@ -53,6 +73,34 @@
                         }
                         else
                         {
+                            @if (EvaluatingSections.Contains(idx))
+                            {
+                                <div class="app-eval-spinner" aria-live="polite">
+                                    <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
+                                    <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
+                                </div>
+                            }
+                            else if (sec.BaselineQualityScore.HasValue || sec.BaselineFaithfulnessScore.HasValue)
+                            {
+                                <div class="app-score-badges">
+                                    @if (sec.BaselineQualityScore.HasValue)
+                                    {
+                                        <span class="app-score-badge">
+                                            Quality: <strong>@sec.BaselineQualityScore/5</strong>
+                                            <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">LLM-judged quality on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
+                                        </span>
+                                    }
+                                    @if (sec.BaselineFaithfulnessScore.HasValue)
+                                    {
+                                        <span class="app-score-badge">
+                                            Faithfulness: <strong>@($"{sec.BaselineFaithfulnessScore:F2}")</strong>
+                                            <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
+                                            <span class="app-score-tooltip" role="tooltip">Measures whether the improved text stays faithful to the original content (0–1). Higher means fewer hallucinated or invented claims.</span>
+                                        </span>
+                                    }
+                                </div>
+                            }
                             @rendered.BaselineHtml
                         }
                     </div>
@@ -219,6 +267,42 @@
                                         </div>
                                     </details>
                                 }
+                                @if (EvaluatingSections.Contains(idx))
+                                {
+                                    <div class="app-eval-spinner" aria-live="polite">
+                                        <img class="app-ouroboros" src="ouroboros.png" width="24" height="24" alt="" aria-hidden="true" />
+                                        <span class="govuk-body-s">@(EvaluationMessage ?? "Evaluating…")</span>
+                                    </div>
+                                }
+                                else if (sec.RagQualityScore.HasValue || sec.RagFaithfulnessScore.HasValue || sec.ContextPrecisionScore.HasValue)
+                                {
+                                    <div class="app-score-badges">
+                                        @if (sec.RagQualityScore.HasValue)
+                                        {
+                                            <span class="app-score-badge">
+                                                Quality: <strong>@sec.RagQualityScore/5</strong>
+                                                <button type="button" class="app-score-info-btn" aria-label="About quality score">?</button>
+                                                <span class="app-score-tooltip" role="tooltip">LLM-judged quality on a 1–5 rubric, based on clarity, completeness, structure and adherence to quality standards.</span>
+                                            </span>
+                                        }
+                                        @if (sec.RagFaithfulnessScore.HasValue)
+                                        {
+                                            <span class="app-score-badge">
+                                                Faithfulness: <strong>@($"{sec.RagFaithfulnessScore:F2}")</strong>
+                                                <button type="button" class="app-score-info-btn" aria-label="About faithfulness score">?</button>
+                                                <span class="app-score-tooltip" role="tooltip">Measures whether the improved text stays faithful to the original content (0–1). Higher means fewer hallucinated or invented claims.</span>
+                                            </span>
+                                        }
+                                        @if (sec.ContextPrecisionScore.HasValue)
+                                        {
+                                            <span class="app-score-badge">
+                                                Context precision: <strong>@($"{sec.ContextPrecisionScore:F2}")</strong>
+                                                <button type="button" class="app-score-info-btn" aria-label="About context precision score">?</button>
+                                                <span class="app-score-tooltip" role="tooltip">Measures how relevant the retrieved reference chunks were to the question (0–1). Higher means the retrieval found more useful material.</span>
+                                            </span>
+                                        }
+                                    </div>
+                                }
                                 @rendered.ImprovedHtml
                             }
                         }
@@ -235,6 +319,8 @@
     [Parameter] public bool ShowEditingFeatures { get; set; }
     [Parameter] public bool ShowExplanations { get; set; }
     [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
+    [Parameter] public HashSet<int> EvaluatingSections { get; set; } = [];
+    [Parameter] public string? EvaluationMessage { get; set; }
     [Parameter] public EventCallback OnSuppressedChanged { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionRestored { get; set; }

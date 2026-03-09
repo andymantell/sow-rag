@@ -109,6 +109,25 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
         return azureClient.GetEmbeddingClient(deployment);
     }
 
+    /// <summary>
+    /// Returns the Foundry Local service base URL (e.g. http://127.0.0.1:5272).
+    /// Starts the service if needed. Only valid when Foundry:UseLocal is true.
+    /// </summary>
+    public Task<string> GetServiceEndpointAsync(CancellationToken ct = default)
+        => GetServiceRootAsync(ct);
+
+    /// <summary>
+    /// Returns the resolved model ID (e.g. "Phi-4-trtrtx-gpu:1") for the configured alias.
+    /// Only valid when Foundry:UseLocal is true.
+    /// </summary>
+    public async Task<string> GetResolvedModelIdAsync(CancellationToken ct = default)
+    {
+        var root = await GetServiceRootAsync(ct);
+        var alias = config["Foundry:LocalModelName"]
+            ?? throw new InvalidOperationException("Foundry:LocalModelName is not configured.");
+        return await ResolveModelIdAsync(root, alias, ct);
+    }
+
     private async Task<string> GetServiceRootAsync(CancellationToken ct)
     {
         if (_cachedServiceRoot is not null) return _cachedServiceRoot;

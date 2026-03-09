@@ -57,6 +57,17 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Pixel-art ouroboros loading animation ────────────────── */
+.app-ouroboros {
+  flex-shrink: 0;
+  animation: ouro-spin 3s linear infinite, ouro-pulse 1.5s ease-in-out infinite;
+}
+@keyframes ouro-spin { to { transform: rotate(360deg); } }
+@keyframes ouro-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
 /* ── Results toolbar ─────────────────────────────────────── */
 .app-results-toolbar {
   display: flex;
@@ -282,6 +293,100 @@ del {
 }
 .app-version-select {
   max-width: 280px;
+}
+
+/* ── Evaluation score badges ─────────────────────────────── */
+.app-score-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.app-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 14px;
+  padding: 4px 10px;
+  background: #f3f2f1;
+  border: 1px solid #b1b4b6;
+  border-radius: 3px;
+  color: #0b0c0c;
+}
+
+/* ── Score info tooltip ──────────────────────────────────── */
+.app-score-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  padding: 0;
+  border: 1px solid #505a5f;
+  border-radius: 50%;
+  background: #fff;
+  color: #505a5f;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.app-score-info-btn:hover,
+.app-score-info-btn:focus {
+  background: #1d70b8;
+  border-color: #1d70b8;
+  color: #fff;
+}
+.app-score-info-btn:focus-visible {
+  outline: 3px solid #fd0;
+  outline-offset: 0;
+}
+.app-score-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 280px;
+  padding: 10px 12px;
+  background: #0b0c0c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  pointer-events: none;
+}
+.app-score-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 14px;
+  border: 6px solid transparent;
+  border-top-color: #0b0c0c;
+}
+.app-score-badge:hover .app-score-tooltip,
+.app-score-info-btn:focus + .app-score-tooltip {
+  display: block;
+}
+
+/* ── Per-section evaluation spinner ──────────────────────── */
+.app-eval-spinner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #f3f2f1;
+  border: 1px solid #b1b4b6;
+  border-radius: 3px;
+}
+.app-eval-spinner .govuk-body-s {
+  margin-bottom: 0;
+  color: #505a5f;
 }
 
 /* ── Responsive: stack diff panels on narrow screens ────── */

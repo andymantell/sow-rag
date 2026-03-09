@@ -4,6 +4,8 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject Microsoft.FeatureManagement.IFeatureManager FeatureManager
+@inject EvaluationService Evaluator
+@inject ILogger<Results> Logger
 @implements IAsyncDisposable
 
 <div class="govuk-width-container">
@@ -25,6 +27,8 @@
                           ShowEditingFeatures="_showEditingFeatures"
                           ShowExplanations="_showExplanations"
                           SuppressedSections="_suppressed"
+                          EvaluatingSections="_evaluatingSections"
+                          EvaluationMessage="@_evaluationMessage"
                           OnSuppressedChanged="SaveSuppressedAsync"
                           OnSectionEdited="HandleSectionEdited"
                           OnVersionRestored="HandleVersionRestored"
@@ -56,6 +60,11 @@
     private int? _previewVersionNumber;
     private string? _previewContent;
 
+    // Evaluation state
+    private readonly HashSet<int> _evaluatingSections = [];
+    private string? _evaluationMessage;
+    private CancellationTokenSource? _evalCts;
+
     protected override async Task OnInitializedAsync()
     {
         _showEditingFeatures = await FeatureManager.IsEnabledAsync("EditingFeatures");
@@ -85,7 +94,13 @@
                 MatchedSection = s.MatchedSection,
                 Explanation = s.Explanation,
                 Unrecognised = s.Unrecognised,
-                VersionCount = s.Versions.Count
+                VersionCount = s.Versions.Count,
+                OriginalQualityScore = s.OriginalQualityScore,
+                BaselineQualityScore = s.BaselineQualityScore,
+                RagQualityScore = s.RagQualityScore,
+                BaselineFaithfulnessScore = s.BaselineFaithfulnessScore,
+                RagFaithfulnessScore = s.RagFaithfulnessScore,
+                ContextPrecisionScore = s.ContextPrecisionScore
             }).ToList()
         };
 
@@ -103,8 +118,110 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             _module = await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./Components/Pages/Results.razor.js");
+
+            if (await FeatureManager.IsEnabledAsync("Evaluation"))
+                _ = RunEvaluationAsync();
+        }
+    }
+
+    private async Task RunEvaluationAsync()
+    {
+        if (_result is null || _sections is null) return;
+
+        // Build list of sections needing evaluation (recognised, have baseline, no scores yet)
+        var toEvaluate = new List<(int ResultIndex, SectionEntity Entity)>();
+        for (var i = 0; i < _result.Sections.Count; i++)
+        {
+            var sec = _result.Sections[i];
+            var entity = _sections[i];
+            if (!sec.Unrecognised && sec.BaselineContent is not null && !sec.RagQualityScore.HasValue)
+                toEvaluate.Add((i, entity));
+        }
+
+        if (toEvaluate.Count == 0) return;
+
+        var evalInputs = toEvaluate.Select(t =>
+        {
+            var sec = _result.Sections[t.ResultIndex];
+            var entity = t.Entity;
+            var contexts = entity.RetrievedContextsJson is not null
+                ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(entity.RetrievedContextsJson) ?? []
+                : [];
+            return new EvaluationService.SectionInput
+            {
+                Original = sec.OriginalContent,
+                Baseline = sec.BaselineContent!,
+                RagImproved = sec.ImprovedContent!,
+                RetrievedContexts = contexts,
+                DefinitionOfGood = entity.DefinitionOfGoodText ?? ""
+            };
+        }).ToList();
+
+        // Mark all as evaluating
+        foreach (var (idx, _) in toEvaluate)
+            _evaluatingSections.Add(idx);
+        _evaluationMessage = $"Scoring section 1 of {toEvaluate.Count}…";
+        await InvokeAsync(StateHasChanged);
+
+        _evalCts = new CancellationTokenSource();
+        try
+        {
+            var completed = 0;
+            await foreach (var (streamIdx, scores) in Evaluator.EvaluateStreamingAsync(evalInputs, _evalCts.Token))
+            {
+                if (streamIdx < 0 || streamIdx >= toEvaluate.Count) continue;
+                var (resultIdx, entity) = toEvaluate[streamIdx];
+
+                // Update in-memory result
+                var sec = _result.Sections[resultIdx];
+                sec.OriginalQualityScore = scores.OriginalQualityScore;
+                sec.BaselineQualityScore = scores.BaselineQualityScore;
+                sec.RagQualityScore = scores.RagQualityScore;
+                sec.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore;
+                sec.RagFaithfulnessScore = scores.RagFaithfulnessScore;
+                sec.ContextPrecisionScore = scores.ContextPrecisionScore;
+
+                // Persist to DB
+                entity.OriginalQualityScore = scores.OriginalQualityScore;
+                entity.BaselineQualityScore = scores.BaselineQualityScore;
+                entity.RagQualityScore = scores.RagQualityScore;
+                entity.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore;
+                entity.RagFaithfulnessScore = scores.RagFaithfulnessScore;
+                entity.ContextPrecisionScore = scores.ContextPrecisionScore;
+
+                await using var db = await DbFactory.CreateDbContextAsync();
+                db.Attach(entity);
+                db.Entry(entity).Property(s => s.OriginalQualityScore).IsModified = true;
+                db.Entry(entity).Property(s => s.BaselineQualityScore).IsModified = true;
+                db.Entry(entity).Property(s => s.RagQualityScore).IsModified = true;
+                db.Entry(entity).Property(s => s.BaselineFaithfulnessScore).IsModified = true;
+                db.Entry(entity).Property(s => s.RagFaithfulnessScore).IsModified = true;
+                db.Entry(entity).Property(s => s.ContextPrecisionScore).IsModified = true;
+                await db.SaveChangesAsync();
+
+                _evaluatingSections.Remove(resultIdx);
+                completed++;
+                _evaluationMessage = completed < toEvaluate.Count
+                    ? $"Scoring section {completed + 1} of {toEvaluate.Count}…"
+                    : null;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Evaluation failed for remaining sections");
+        }
+        finally
+        {
+            _evaluatingSections.Clear();
+            _evaluationMessage = null;
+            await InvokeAsync(StateHasChanged);
+            _evalCts?.Dispose();
+            _evalCts = null;
+        }
     }
 
     private async Task HandleSectionEdited((int SectionIndex, string NewMarkdown) args)
@@ -216,6 +333,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        _evalCts?.Cancel();
+        _evalCts?.Dispose();
         if (_module is not null)
         {
             try { await _module.DisposeAsync(); }

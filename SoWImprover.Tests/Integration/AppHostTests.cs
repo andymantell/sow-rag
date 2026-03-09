@@ -53,8 +53,12 @@ public class AppHostTests : IClassFixture<AppHostTests.SoWWebApplicationFactory>
                 if (hostedServiceDescriptor is not null)
                     services.Remove(hostedServiceDescriptor);
 
-                // Replace FoundryClientFactory with a no-op (not used when services are stubbed)
+                // Replace FoundryClientFactory with a stub (chat/embedding services depend on it)
                 RemoveService<FoundryClientFactory>(services);
+                var stubConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+                services.AddSingleton(new FoundryClientFactory(
+                    stubConfig,
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<FoundryClientFactory>.Instance));
 
                 // Stub IChatService
                 var chat = Substitute.For<IChatService>();

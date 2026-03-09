@@ -71,7 +71,9 @@ public class SoWImproverService(
                 BaselineContent = baseline,
                 ImprovedContent = improved,
                 MatchedSection = matchedName,
-                Explanation = explanation
+                Explanation = explanation,
+                RetrievedContexts = chunks.Select(c => c.Text).ToList(),
+                DefinitionOfGoodText = definedSection.Content
             });
         }
 

@@ -36,6 +36,32 @@ public class SectionResult
 
     /// <summary>Number of versions that exist for this section. 0 if never improved.</summary>
     public int VersionCount { get; set; }
+
+    /// <summary>Quality score (1-5) for the original content. Null if not evaluated.</summary>
+    public int? OriginalQualityScore { get; set; }
+
+    /// <summary>Quality score (1-5) for the baseline (no RAG) version. Null if not evaluated.</summary>
+    public int? BaselineQualityScore { get; set; }
+
+    /// <summary>Quality score (1-5) for the RAG-improved version. Null if not evaluated.</summary>
+    public int? RagQualityScore { get; set; }
+
+    /// <summary>Faithfulness score (0-1) for the baseline version. Measures fidelity to original content.</summary>
+    public double? BaselineFaithfulnessScore { get; set; }
+
+    /// <summary>Faithfulness score (0-1) for the RAG version. Measures fidelity to original content.</summary>
+    public double? RagFaithfulnessScore { get; set; }
+
+    /// <summary>Context precision score (0-1) for RAG retrieval. Null if not evaluated or no chunks.</summary>
+    public double? ContextPrecisionScore { get; set; }
+
+    /// <summary>Retrieved chunk texts used for RAG improvement. Not persisted — used for evaluation only.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<string>? RetrievedContexts { get; set; }
+
+    /// <summary>The definition of good used for this section. Not persisted — used for evaluation only.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? DefinitionOfGoodText { get; set; }
 }
 
 /// <summary>A reference to a corpus chunk used as retrieval context.</summary>

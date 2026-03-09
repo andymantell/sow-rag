@@ -4,7 +4,6 @@
 @inject IDbContextFactory<SoWDbContext> DbFactory
 @inject NavigationManager Nav
 @inject ILogger<UploadPanel> Logger
-
 <form @onsubmit="HandleImproveClicked" @onsubmit:preventDefault>
 
 @if (_errors.Count > 0)
@@ -177,6 +176,9 @@
                         Explanation = s.Explanation,
                         Unrecognised = s.Unrecognised,
                         Suppressed = false,
+                        RetrievedContextsJson = s.RetrievedContexts is { Count: > 0 }
+                            ? System.Text.Json.JsonSerializer.Serialize(s.RetrievedContexts) : null,
+                        DefinitionOfGoodText = s.DefinitionOfGoodText,
                         Versions = s.ImprovedContent is not null
                             ? [new SectionVersionEntity
                             {
