@@ -117,4 +117,133 @@ public class EvaluationServiceTests
         Assert.Null(results[0].BaselineFaithfulnessScore);
         Assert.Null(results[0].ContextPrecisionScore);
     }
+
+    [Fact]
+    public void ParseSingleResult_IncludesOriginalQualityScore()
+    {
+        var line = """{"index": 0, "original_quality": 2, "baseline_quality": 3, "rag_quality": 4, "baseline_faithfulness": 0.8, "rag_faithfulness": 0.9, "context_precision": 0.7}""";
+
+        var result = EvaluationService.ParseSingleResult(line);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Value.Scores.OriginalQualityScore);
+        Assert.Equal(3, result.Value.Scores.BaselineQualityScore);
+        Assert.Equal(4, result.Value.Scores.RagQualityScore);
+        Assert.Equal(0.8, result.Value.Scores.BaselineFaithfulnessScore);
+        Assert.Equal(0.9, result.Value.Scores.RagFaithfulnessScore);
+        Assert.Equal(0.7, result.Value.Scores.ContextPrecisionScore);
+    }
+
+    [Fact]
+    public void ParseSingleResult_ReturnsNullForNegativeIndex()
+    {
+        var line = """{"index": -1, "rag_quality": 4}""";
+
+        Assert.Null(EvaluationService.ParseSingleResult(line));
+    }
+
+    [Fact]
+    public void ParseSingleResult_ReturnsNullForEmptyObject()
+    {
+        Assert.Null(EvaluationService.ParseSingleResult("{}"));
+    }
+
+    [Fact]
+    public void ParseOutputJson_IncludesOriginalQualityScore()
+    {
+        var json = """
+        {
+          "sections": [
+            {
+              "original_quality": 2,
+              "baseline_quality": 3,
+              "rag_quality": 4,
+              "baseline_faithfulness": 0.8,
+              "rag_faithfulness": 0.9,
+              "context_precision": 0.7
+            }
+          ]
+        }
+        """;
+
+        var results = EvaluationService.ParseOutputJson(json);
+
+        Assert.Single(results);
+        Assert.Equal(2, results[0].OriginalQualityScore);
+    }
+
+    [Fact]
+    public void ParseOutputJson_HandlesMultipleSections()
+    {
+        var json = """
+        {
+          "sections": [
+            { "original_quality": 1, "rag_quality": 3, "baseline_faithfulness": 0.5, "rag_faithfulness": 0.6 },
+            { "original_quality": 4, "rag_quality": 5, "baseline_faithfulness": 0.9, "rag_faithfulness": 0.95 }
+          ]
+        }
+        """;
+
+        var results = EvaluationService.ParseOutputJson(json);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(1, results[0].OriginalQualityScore);
+        Assert.Equal(4, results[1].OriginalQualityScore);
+        Assert.Equal(5, results[1].RagQualityScore);
+    }
+
+    [Fact]
+    public void BuildInputJson_IncludesAllFieldsInSnakeCase()
+    {
+        var sections = new List<EvaluationService.SectionInput>
+        {
+            new()
+            {
+                Original = "orig",
+                Baseline = "base",
+                RagImproved = "rag",
+                RetrievedContexts = ["ctx1"],
+                DefinitionOfGood = "def"
+            }
+        };
+
+        var json = EvaluationService.BuildInputJson("http://localhost:11434/v1", "mistral:7b", sections);
+
+        Assert.Contains("\"model_id\"", json);
+        Assert.Contains("mistral:7b", json);
+        Assert.Contains("\"rag_improved\"", json);
+        Assert.Contains("\"retrieved_contexts\"", json);
+        Assert.Contains("\"definition_of_good\"", json);
+    }
+
+    [Fact]
+    public void ParseSingleResult_HandlesIntegerFaithfulness()
+    {
+        // Python may emit 1 instead of 1.0 for perfect scores
+        var line = """{"index": 0, "baseline_faithfulness": 1, "rag_faithfulness": 0}""";
+
+        var result = EvaluationService.ParseSingleResult(line);
+
+        Assert.NotNull(result);
+        Assert.Equal(1.0, result.Value.Scores.BaselineFaithfulnessScore);
+        Assert.Equal(0.0, result.Value.Scores.RagFaithfulnessScore);
+    }
+
+    [Fact]
+    public void ParseSingleResult_MissingOptionalScoresAreNull()
+    {
+        // Only index and one score — others should be null
+        var line = """{"index": 5, "rag_quality": 3}""";
+
+        var result = EvaluationService.ParseSingleResult(line);
+
+        Assert.NotNull(result);
+        Assert.Equal(5, result.Value.Index);
+        Assert.Equal(3, result.Value.Scores.RagQualityScore);
+        Assert.Null(result.Value.Scores.OriginalQualityScore);
+        Assert.Null(result.Value.Scores.BaselineQualityScore);
+        Assert.Null(result.Value.Scores.BaselineFaithfulnessScore);
+        Assert.Null(result.Value.Scores.RagFaithfulnessScore);
+        Assert.Null(result.Value.Scores.ContextPrecisionScore);
+    }
 }
