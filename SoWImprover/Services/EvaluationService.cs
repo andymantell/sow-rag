@@ -80,6 +80,10 @@ public class EvaluationService(
             ?? configuration["Ollama:EmbeddingModelName"];
         var inputJson = BuildInputJson(endpoint, modelId, sections, embeddingModelId);
 
+        // Free GPU VRAM by unloading models that are no longer needed before
+        // loading the (potentially larger) evaluation model.
+        await UnloadModelsForEvaluationAsync(ct);
+
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "ragas_evaluate.py");
         if (!File.Exists(scriptPath))
             throw new FileNotFoundException(
@@ -115,14 +119,20 @@ public class EvaluationService(
             catch { /* process exited or cancelled */ }
         }, ct);
 
+        // Per-section timeout: reset each time we receive output from the Python process.
+        // This avoids a fixed total timeout that can't accommodate many slow sections.
+        var perSectionTimeout = TimeSpan.FromMinutes(30);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(TimeSpan.FromMinutes(30));
+        timeoutCts.CancelAfter(perSectionTimeout);
 
         // Read stdout line by line — each line is a JSON object for one section
         string? line;
         while ((line = await process.StandardOutput.ReadLineAsync(timeoutCts.Token)) is not null)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
+
+            // Reset the per-section timeout on each line of output
+            timeoutCts.CancelAfter(perSectionTimeout);
 
             var parsed = ParseSingleResult(line);
             if (parsed is not null)
@@ -136,7 +146,7 @@ public class EvaluationService(
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
-            throw new InvalidOperationException("Ragas evaluation timed out after 30 minutes.");
+            throw new InvalidOperationException("Ragas evaluation timed out — no output received for 30 minutes.");
         }
 
         if (process.ExitCode != 0)
@@ -219,6 +229,66 @@ public class EvaluationService(
         NoiseSensitivityScore = el.TryGetProperty("noise_sensitivity", out var ns) && ns.ValueKind != JsonValueKind.Null
             ? ns.GetDouble() : null,
     };
+
+    /// <summary>
+    /// Unloads Foundry Local and Ollama models to free GPU VRAM before evaluation.
+    /// Best-effort — failures are logged but do not block evaluation.
+    /// </summary>
+    private async Task UnloadModelsForEvaluationAsync(CancellationToken ct)
+    {
+        // Unload Foundry Local chat model (e.g. phi-4)
+        var foundryModel = configuration["Foundry:LocalModelName"];
+        if (!string.IsNullOrEmpty(foundryModel))
+        {
+            try
+            {
+                logger.LogInformation("Unloading Foundry model '{Model}' to free VRAM", foundryModel);
+                await RunProcessAsync("foundry", ["model", "unload", foundryModel], ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to unload Foundry model '{Model}'", foundryModel);
+            }
+        }
+
+        // Unload Ollama models (embedding + any previously loaded chat model)
+        var ollamaModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var embeddingModel = configuration["Ollama:EmbeddingModelName"];
+        if (!string.IsNullOrEmpty(embeddingModel))
+            ollamaModels.Add(embeddingModel);
+
+        foreach (var model in ollamaModels)
+        {
+            try
+            {
+                logger.LogInformation("Stopping Ollama model '{Model}' to free VRAM", model);
+                await RunProcessAsync("ollama", ["stop", model], ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to stop Ollama model '{Model}'", model);
+            }
+        }
+    }
+
+    private static async Task RunProcessAsync(string fileName, string[] args, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi)
+            ?? throw new InvalidOperationException($"Failed to start '{fileName}'");
+
+        await process.WaitForExitAsync(ct);
+    }
 
     private static string FindPython()
     {

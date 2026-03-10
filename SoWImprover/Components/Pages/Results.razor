@@ -28,6 +28,7 @@
                           ShowExplanations="_showExplanations"
                           SuppressedSections="_suppressed"
                           EvaluatingSections="_evaluatingSections"
+                          EvaluationAttemptedSections="_evaluationAttempted"
                           OnSuppressedChanged="SaveSuppressedAsync"
                           OnSectionEdited="HandleSectionEdited"
                           OnVersionRestored="HandleVersionRestored"
@@ -61,6 +62,7 @@
 
     // Evaluation state
     private readonly HashSet<int> _evaluatingSections = [];
+    private readonly HashSet<int> _evaluationAttempted = [];
     private CancellationTokenSource? _evalCts;
 
     protected override async Task OnInitializedAsync()
@@ -164,9 +166,12 @@
             };
         }).ToList();
 
-        // Mark all as evaluating
+        // Mark all as evaluating (and attempted, which persists after completion)
         foreach (var (idx, _) in toEvaluate)
+        {
             _evaluatingSections.Add(idx);
+            _evaluationAttempted.Add(idx);
+        }
 
         await InvokeAsync(StateHasChanged);
 

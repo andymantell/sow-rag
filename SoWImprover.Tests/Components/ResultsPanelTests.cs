@@ -261,6 +261,27 @@ public class ResultsPanelTests : BunitContext
         Assert.Contains("Scoring failed", cut.Markup);
     }
 
+    [Fact]
+    public void EvalError_ShowsErrorCrossesWhenAttemptedButNoScores()
+    {
+        // Simulate: evaluation was attempted (in attempted set) but streaming
+        // ended before any scores arrived (not in evaluating set, no scores)
+        var result = MakeResult();
+        var attempted = new HashSet<int> { 0 };
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.EvaluatingSections, new HashSet<int>())
+            .Add(x => x.EvaluationAttemptedSections, attempted));
+
+        // Badges should render (because attempted) with error crosses (because no scores)
+        Assert.Contains("app-score-badge", cut.Markup);
+        Assert.Contains("app-badge-error", cut.Markup);
+        Assert.Contains("Scoring failed", cut.Markup);
+    }
+
     // ── Unrecognised sections don't show scores ──────────────────
 
     [Fact]
