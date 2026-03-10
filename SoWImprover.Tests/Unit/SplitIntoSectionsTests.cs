@@ -115,4 +115,15 @@ public class SplitIntoSectionsTests
         Assert.Equal("PROJECT TIMELINE", sections[1].Title);
         Assert.Equal("ROLES AND RESPONSIBILITIES", sections[2].Title);
     }
+
+    [Fact]
+    public void DocusignEnvelopeId_StrippedFromContent()
+    {
+        var text = "Docusign Envelope ID: AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\n\nSCOPE OF WORK\nScope body.\n\nDocusign Envelope ID: AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\n\nPROJECT TIMELINE\nTimeline body.";
+        var sections = SoWImproverService.SplitIntoSections(text);
+
+        Assert.Equal(2, sections.Count);
+        Assert.DoesNotContain("Docusign", sections[0].Body);
+        Assert.DoesNotContain("Docusign", sections[1].Body);
+    }
 }

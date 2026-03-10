@@ -214,8 +214,12 @@ public class SoWImproverService(
         return (await chatService.CompleteAsync(prompt, ExplanationMaxTokens, ct)).Trim();
     }
 
+    internal static string StripPdfArtifacts(string text)
+        => Regex.Replace(text, @"(?m)^Docusign Envelope ID:.*$\n?", "");
+
     internal static List<DocumentSection> SplitIntoSections(string text)
     {
+        text = StripPdfArtifacts(text);
         var lines = text.Split('\n');
         var sections = new List<DocumentSection>();
         var currentTitle = "Introduction";
