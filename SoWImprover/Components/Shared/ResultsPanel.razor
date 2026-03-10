@@ -108,6 +108,10 @@
                                     </button>
                                 }
                             </div>
+                            @if (!string.IsNullOrEmpty(sec.MatchedSection))
+                            {
+                                <p class="govuk-body-s app-matched-section">Matched to: <strong>@sec.MatchedSection</strong></p>
+                            }
                             <p class="govuk-body app-suppressed-notice">
                                 Section excluded from output
                             </p>
@@ -164,6 +168,10 @@
                                     </div>
                                 }
                             </div>
+                            @if (!string.IsNullOrEmpty(sec.MatchedSection))
+                            {
+                                <p class="govuk-body-s app-matched-section">Matched to: <strong>@sec.MatchedSection</strong></p>
+                            }
 
                             @if (ShowEditingFeatures)
                             {

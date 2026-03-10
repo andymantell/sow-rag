@@ -112,18 +112,25 @@
   font-style: italic;
   color: #505a5f;
 }
+.app-matched-section {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.25;
+  color: #505a5f;
+  margin: -10px 0 10px;
+}
 
 /* ── Section-per-row diff layout ─────────────────────────── */
 .diff-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: auto;
   align-content: start;
 }
 .diff-header-row {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   background: #ffffff;
   border-bottom: 2px solid #1d70b8;
 }
@@ -142,6 +149,8 @@
 .diff-col {
   background: #ffffff;
   padding: 25px 15px;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 .diff-col + .diff-col { border-left: 1px solid #b1b4b6; }
 
