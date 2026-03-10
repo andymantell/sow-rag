@@ -229,6 +229,8 @@ public class SoWImproverService(
                     sections.Add(new DocumentSection(currentTitle, string.Join("\n", currentBody).Trim()));
 
                 currentTitle = Regex.Replace(line.TrimStart('#').Trim(), @"\*{1,2}|_{1,2}", "").Trim();
+                // Strip leading number prefix: "2 Buyer Requirements" → "Buyer Requirements"
+                currentTitle = Regex.Replace(currentTitle, @"^\d+[\.\):]?\s+", "").Trim();
                 currentBody.Clear();
             }
             else
@@ -251,10 +253,28 @@ public class SoWImproverService(
         if (line.StartsWith('#') && line.TrimStart('#').StartsWith(' ')) return true;
         var t = line.Trim();
         if (t.Length < 3 || !t.Any(char.IsLetter)) return false;
+
+        // Bold-formatted heading: entire line is **text** or number + **text**
+        // e.g. "**Annex 1 (Template Statement of Work)**" or "2 **Buyer Requirements**"
+        // Exclude bold field labels like "**Date:** value" (colon followed by non-bold text)
+        if (IsBoldHeading(t)) return true;
+
         if (t != t.ToUpperInvariant()) return false;
         // Avoid misclassifying table cells, list items, or short abbreviations (e.g. "UK", "SLA")
         if (t.StartsWith('|') || t.StartsWith('-') || t.StartsWith('*')) return false;
         return t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2;
+    }
+
+    private static bool IsBoldHeading(string t)
+    {
+        // Strip leading number prefix: "2 **Heading**" → "**Heading**"
+        var s = Regex.Replace(t, @"^\d+[\.\):]?\s+", "");
+        if (!s.StartsWith("**") || !s.EndsWith("**")) return false;
+        // Exclude field labels: "**Label:** value" — bold text ending with :** followed by content
+        // A heading may end with ":**" (e.g. "**Risks:**") but won't have non-bold text after
+        var inner = s[2..^2];
+        if (inner.Contains("**")) return false; // nested bold markers = not a simple heading
+        return true;
     }
 }
 
