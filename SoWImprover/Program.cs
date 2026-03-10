@@ -21,6 +21,7 @@ builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
 builder.Services.AddSingleton<DefinitionBuilder>();
 builder.Services.AddSingleton<SoWImproverService>();
 builder.Services.AddSingleton<EvaluationService>();
+builder.Services.AddSingleton<GpuMemoryManager>();
 
 // BackgroundService: generates the definition of good at startup
 builder.Services.AddHostedService<DefinitionGeneratorService>();

@@ -8,7 +8,8 @@ namespace SoWImprover.Services;
 
 public class EvaluationService(
     IConfiguration configuration,
-    ILogger<EvaluationService> logger)
+    ILogger<EvaluationService> logger,
+    GpuMemoryManager gpuMemory)
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -82,7 +83,7 @@ public class EvaluationService(
 
         // Free GPU VRAM by unloading models that are no longer needed before
         // loading the (potentially larger) evaluation model.
-        await UnloadModelsForEvaluationAsync(ct);
+        await gpuMemory.PrepareForEvaluationAsync(ct);
 
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "ragas_evaluate.py");
         if (!File.Exists(scriptPath))
@@ -229,66 +230,6 @@ public class EvaluationService(
         NoiseSensitivityScore = el.TryGetProperty("noise_sensitivity", out var ns) && ns.ValueKind != JsonValueKind.Null
             ? ns.GetDouble() : null,
     };
-
-    /// <summary>
-    /// Unloads Foundry Local and Ollama models to free GPU VRAM before evaluation.
-    /// Best-effort — failures are logged but do not block evaluation.
-    /// </summary>
-    private async Task UnloadModelsForEvaluationAsync(CancellationToken ct)
-    {
-        // Unload Foundry Local chat model (e.g. phi-4)
-        var foundryModel = configuration["Foundry:LocalModelName"];
-        if (!string.IsNullOrEmpty(foundryModel))
-        {
-            try
-            {
-                logger.LogInformation("Unloading Foundry model '{Model}' to free VRAM", foundryModel);
-                await RunProcessAsync("foundry", ["model", "unload", foundryModel], ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to unload Foundry model '{Model}'", foundryModel);
-            }
-        }
-
-        // Unload Ollama models (embedding + any previously loaded chat model)
-        var ollamaModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var embeddingModel = configuration["Ollama:EmbeddingModelName"];
-        if (!string.IsNullOrEmpty(embeddingModel))
-            ollamaModels.Add(embeddingModel);
-
-        foreach (var model in ollamaModels)
-        {
-            try
-            {
-                logger.LogInformation("Stopping Ollama model '{Model}' to free VRAM", model);
-                await RunProcessAsync("ollama", ["stop", model], ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to stop Ollama model '{Model}'", model);
-            }
-        }
-    }
-
-    private static async Task RunProcessAsync(string fileName, string[] args, CancellationToken ct)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = fileName,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        foreach (var arg in args)
-            psi.ArgumentList.Add(arg);
-
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException($"Failed to start '{fileName}'");
-
-        await process.WaitForExitAsync(ct);
-    }
 
     private static string FindPython()
     {
