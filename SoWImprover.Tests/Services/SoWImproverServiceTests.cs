@@ -23,13 +23,13 @@ public class SoWImproverServiceTests
             .Returns("{\"Introduction\": null}");
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Single(result.Sections);
         Assert.True(result.Sections[0].Unrecognised);
         Assert.Null(result.Sections[0].ImprovedContent);
         Assert.Equal("Introduction", result.Sections[0].OriginalTitle);
-        Assert.Equal("Some body text.", result.Sections[0].OriginalContent);
+        Assert.Equal("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", result.Sections[0].OriginalContent);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Single(result.Sections);
         Assert.False(result.Sections[0].Unrecognised);
@@ -79,7 +79,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Single(result.Sections);
         Assert.Equal("Baseline content here.", result.Sections[0].BaselineContent);
@@ -93,12 +93,12 @@ public class SoWImproverServiceTests
             .Returns("not valid json at all");
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Single(result.Sections);
         Assert.True(result.Sections[0].Unrecognised);
         Assert.Equal("Introduction", result.Sections[0].OriginalTitle);
-        Assert.Equal("Some body text.", result.Sections[0].OriginalContent);
+        Assert.Equal("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", result.Sections[0].OriginalContent);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Equal("Improved content.", result.Sections[0].ImprovedContent);
     }
@@ -144,7 +144,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.Equal("Actual content here.", result.Sections[0].ImprovedContent);
     }
@@ -168,7 +168,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var text = "SCOPE OF WORK\nThe contractor shall deliver.\n\nRANDOM HEADING\nSome unknown content.";
+        var text = "SCOPE OF WORK\nThe contractor shall deliver all required outputs and milestones as specified in this agreement within the agreed timescales and budget constraints.\n\nRANDOM HEADING\nSome unknown content that is not long enough to trigger improvement.";
         var result = await _service.ImproveAsync(text, definition);
 
         Assert.Equal(2, result.Sections.Count);
@@ -184,7 +184,7 @@ public class SoWImproverServiceTests
         Assert.Equal("RANDOM HEADING", result.Sections[1].OriginalTitle);
         Assert.True(result.Sections[1].Unrecognised);
         Assert.Null(result.Sections[1].ImprovedContent);
-        Assert.Equal("Some unknown content.", result.Sections[1].OriginalContent);
+        Assert.Equal("Some unknown content that is not long enough to trigger improvement.", result.Sections[1].OriginalContent);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class SoWImproverServiceTests
         var progressMessages = new List<string>();
         var progress = new SyncProgress<string>(msg => progressMessages.Add(msg));
 
-        await _service.ImproveAsync("Some body text.", definition, progress);
+        await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition, progress);
 
         Assert.Contains(progressMessages, p => p.Contains("Matching sections"));
         Assert.Contains(progressMessages, p => p.Contains("Improving"));
@@ -234,7 +234,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinition();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.NotEmpty(result.ChunksUsed);
         Assert.Equal("example.pdf", result.ChunksUsed[0].SourceFile);
@@ -260,7 +260,7 @@ public class SoWImproverServiceTests
             });
 
         var definition = CreateReadyDefinitionWithLongChunk();
-        var result = await _service.ImproveAsync("Some body text.", definition);
+        var result = await _service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         Assert.NotEmpty(result.ChunksUsed);
         Assert.True(result.ChunksUsed[0].Snippet.Length <= 201); // 200 chars + "…"

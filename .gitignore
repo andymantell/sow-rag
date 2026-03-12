@@ -5,4 +5,5 @@ sow-improver.db-shm
 sow-improver.db-wal
 definition-cache.json
 redactions-cache.json
+improvement-log.md
 __pycache__

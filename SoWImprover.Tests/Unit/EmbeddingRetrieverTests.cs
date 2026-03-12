@@ -86,7 +86,7 @@ public class EmbeddingRetrieverTests
         var results = await retriever.RetrieveAsync("query");
 
         Assert.Equal(2, results.Count);
-        Assert.Equal("chunk2", results[0].Text); // most similar first
+        Assert.Equal("chunk2", results[0].Chunk.Text); // most similar first
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class EmbeddingRetrieverTests
         var results = await retriever.RetrieveAsync("query");
 
         Assert.Equal(2, results.Count);
-        Assert.Equal("chunk0", results[0].Text); // most similar first
+        Assert.Equal("chunk0", results[0].Chunk.Text); // most similar first
     }
 
     [Fact]
@@ -151,9 +151,79 @@ public class EmbeddingRetrieverTests
         var results = await retriever.RetrieveAsync("query");
 
         Assert.Equal(3, results.Count);
-        Assert.Equal("high", results[0].Text);
-        Assert.Equal("mid", results[1].Text);
-        Assert.Equal("low", results[2].Text);
+        Assert.Equal("high", results[0].Chunk.Text);
+        Assert.Equal("mid", results[1].Chunk.Text);
+        Assert.Equal("low", results[2].Chunk.Text);
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_MinScore_FiltersLowRelevanceChunks()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "irrelevant", ChunkIndex = 0 },
+            new() { SourceFile = "a.pdf", Text = "relevant", ChunkIndex = 1 },
+        };
+        var vectors = new float[][]
+        {
+            [0, 1, 0],   // orthogonal to query — score ≈ 0
+            [1, 0, 0],   // identical to query — score = 1
+        };
+
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, topK: 10, minScore: 0.5f);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Single(results);
+        Assert.Equal("relevant", results[0].Chunk.Text);
+        Assert.True(results[0].Score >= 0.5f);
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_AllBelowThreshold_ReturnsEmpty()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "irrelevant1", ChunkIndex = 0 },
+            new() { SourceFile = "a.pdf", Text = "irrelevant2", ChunkIndex = 1 },
+        };
+        var vectors = new float[][]
+        {
+            [0, 1, 0],
+            [0, 0, 1],
+        };
+
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, topK: 10, minScore: 0.5f);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_ReturnsScores()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "chunk", ChunkIndex = 0 },
+        };
+        var vectors = new float[][] { [1, 0, 0] };
+
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, topK: 1);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Single(results);
+        Assert.Equal(1.0f, results[0].Score, precision: 5);
     }
 
     [Fact]

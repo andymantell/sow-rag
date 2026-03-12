@@ -119,7 +119,7 @@ public class DefinitionPipelineTests
             NullLogger<SoWImproverService>.Instance);
 
         // Act
-        var result = await service.ImproveAsync("Introduction text here.", definition);
+        var result = await service.ImproveAsync("The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.", definition);
 
         // Assert
         Assert.Single(result.Sections);

@@ -81,8 +81,17 @@ public class SoWImproverService(
             var baseline = await ImproveSectionAsync(section, [], definedSection.Content, ct);
 
             // RAG-enhanced: retrieve relevant chunks and improve
-            var chunks = await definition.Retriever!.RetrieveAsync(section.Body, ct);
+            var scored = await definition.Retriever!.RetrieveAsync(section.Body, ct);
+            var chunks = scored.Select(s => s.Chunk).ToList();
             allChunks.AddRange(chunks);
+
+            foreach (var sc in scored)
+                logger.LogInformation("  Chunk {File}#{Index} score={Score:F3}",
+                    sc.Chunk.SourceFile, sc.Chunk.ChunkIndex, sc.Score);
+
+            if (scored.Count == 0)
+                logger.LogInformation("  No chunks above relevance threshold — using baseline only");
+
             var improved = await ImproveSectionAsync(section, chunks, definedSection.Content, ct);
             var explanation = await ExplainChangesAsync(section, improved, ct);
 
@@ -94,10 +103,14 @@ public class SoWImproverService(
                 ImprovedContent = improved,
                 MatchedSection = matchedName,
                 Explanation = explanation,
-                RetrievedContexts = chunks.Select(c => c.Text).ToList(),
+                RetrievedContexts = chunks.Select(c =>
+                    string.IsNullOrEmpty(c.RedactedText) ? c.Text : c.RedactedText).ToList(),
+                RetrievedScores = scored.Select(s => s.Score).ToList(),
                 DefinitionOfGoodText = definedSection.Content
             });
         }
+
+        WriteImprovementLog(sectionResults, allChunks);
 
         var chunksUsed = allChunks
             .GroupBy(c => $"{c.SourceFile}|{c.ChunkIndex}")
@@ -251,6 +264,78 @@ public class SoWImproverService(
             """;
 
         return (await chatService.CompleteAsync(prompt, ExplanationMaxTokens, ct)).Trim();
+    }
+
+    private void WriteImprovementLog(
+        List<SectionResult> sections, List<DocumentChunk> allChunks)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"# Improvement Log — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine();
+
+            foreach (var s in sections)
+            {
+                sb.AppendLine($"## {s.OriginalTitle}");
+                sb.AppendLine($"**Matched to:** {s.MatchedSection ?? "(unrecognised)"}");
+                if (s.Unrecognised)
+                {
+                    sb.AppendLine("*Skipped (unrecognised section)*");
+                    sb.AppendLine();
+                    continue;
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("### Original");
+                sb.AppendLine(s.OriginalContent);
+                sb.AppendLine();
+                sb.AppendLine("### Improved (no RAG)");
+                sb.AppendLine(s.BaselineContent);
+                sb.AppendLine();
+                sb.AppendLine("### Improved (with RAG)");
+                sb.AppendLine(s.ImprovedContent);
+                sb.AppendLine();
+
+                if (s.Explanation is not null)
+                {
+                    sb.AppendLine("### What changed");
+                    sb.AppendLine(s.Explanation);
+                    sb.AppendLine();
+                }
+
+                if (s.RetrievedContexts is { Count: > 0 })
+                {
+                    sb.AppendLine($"### RAG chunks used ({s.RetrievedContexts.Count})");
+                    for (var i = 0; i < s.RetrievedContexts.Count; i++)
+                    {
+                        var score = s.RetrievedScores is not null && i < s.RetrievedScores.Count
+                            ? $" (score: {s.RetrievedScores[i]:F3})"
+                            : "";
+                        var snippet = s.RetrievedContexts[i];
+                        if (snippet.Length > 200) snippet = snippet[..200] + "…";
+                        sb.AppendLine($"- **Chunk {i + 1}{score}:** {snippet}");
+                    }
+                    sb.AppendLine();
+                }
+                else
+                {
+                    sb.AppendLine("### RAG chunks used (0)");
+                    sb.AppendLine("*No chunks above relevance threshold — baseline used.*");
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            File.WriteAllText("improvement-log.md", sb.ToString());
+            logger.LogInformation("Improvement log written to improvement-log.md");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not write improvement log");
+        }
     }
 
     internal static string StripPdfArtifacts(string text)

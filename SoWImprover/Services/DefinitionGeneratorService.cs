@@ -18,6 +18,7 @@ public class DefinitionGeneratorService(
     {
         var folder = config["Docs:KnownGoodFolder"] ?? "./sample-sows";
         var topK = config.GetValue<int>("Docs:TopKChunks", 5);
+        var minScore = config.GetValue<float>("Docs:MinChunkScore", 0.3f);
 
         logger.LogInformation("Loading corpus from: {Folder}", folder);
         definition.SetProgress("Loading corpus…");
@@ -40,7 +41,7 @@ public class DefinitionGeneratorService(
         definition.SetProgress($"Starting analysis of {documents.Count} document(s)…");
         var sections = await GetOrBuildDefinitionAsync(documents, folder, definition.SetProgress, ct);
 
-        var retriever = new EmbeddingRetriever(chunks, vectors, embeddingService, topK);
+        var retriever = new EmbeddingRetriever(chunks, vectors, embeddingService, topK, minScore);
 
         definition.SetReady(sections, retriever, retriever.DocumentCount, retriever.ChunkCount);
 

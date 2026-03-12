@@ -77,6 +77,10 @@ public class SectionResult
     [System.Text.Json.Serialization.JsonIgnore]
     public List<string>? RetrievedContexts { get; set; }
 
+    /// <summary>Cosine similarity scores for the retrieved chunks (parallel to RetrievedContexts).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<float>? RetrievedScores { get; set; }
+
     /// <summary>The definition of good used for this section. Not persisted — used for evaluation only.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string? DefinitionOfGoodText { get; set; }
