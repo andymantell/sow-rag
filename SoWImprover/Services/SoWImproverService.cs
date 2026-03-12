@@ -163,20 +163,28 @@ public class SoWImproverService(
             : "No relevant examples found.";
 
         var prompt = $$"""
-            You are an expert editor rewriting a Statement of Work (SoW) document.
+            You are an expert editor improving a Statement of Work (SoW) document.
             Always write in British English (e.g. "organisation", "recognised", "colour", "centre").
 
-            Your task is to rewrite the section below so that it reads as polished, professional SoW content.
-            The output must be the rewritten section itself — actual contract/SoW language, not commentary,
-            not a description of improvements, not guidance on how a good SoW should be written.
-            Do not describe what the section should contain. Write the content directly.
+            Your task is to improve the section below so that it reads as polished, professional SoW content.
+            "Improve" means: better structure, clearer language, more precise wording, and proper
+            SoW conventions. It does NOT mean adding new facts, figures, dates, obligations, or
+            requirements that are not already present in the original.
 
-            Use the QUALITY STANDARDS below as editorial guidance only. Do not reproduce them in the output.
+            CRITICAL RULES:
+            - Every factual claim in your output must come from the SECTION TO REWRITE below.
+            - Do NOT invent specific dates, monetary values, parties, metrics, or obligations.
+            - If the original is vague, keep it vague — improve the wording, not the specificity.
+            - Use the QUALITY STANDARDS and EXAMPLES for style and structure guidance only.
+              Do not copy facts or details from them into the output.
+            - The output must be the rewritten section itself — actual contract/SoW language,
+              not commentary, not a description of improvements.
+            - Do not describe what the section should contain. Write the content directly.
 
             QUALITY STANDARDS for "{{section.Title}}" (editorial reference — do not include in output):
             {{sectionDefinition}}
 
-            RELEVANT EXAMPLES FROM KNOWN-GOOD SoWs (editorial reference — do not include in output):
+            RELEVANT EXAMPLES FROM KNOWN-GOOD SoWs (style reference only — do not copy content from these):
             {{context}}
 
             SECTION TO REWRITE:
