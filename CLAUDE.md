@@ -66,6 +66,8 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 **Definition cache:** `{corpus}/definition-cache.json`. Valid when corpus fingerprint and chat model name both match. Avoids re-running multi-document LLM analysis on restart.
 
+**Redaction cache:** `{corpus}/redactions-cache.json`. Valid when corpus fingerprint and chat model name both match. Stores LLM-redacted chunk text computed at indexing time. Two-pass approach: `ChunkRedactor.Redact()` applies fast regex for unambiguous patterns (emails, postcodes, money, dates, phones, refs, gov abbreviations), then `RedactWithLlmAsync()` sends to the LLM for contextual entities (company names, gov departments, person names, addresses). `DocumentChunk.RedactedText` holds the result; used at prompt time instead of runtime regex.
+
 **Chunking:** `text.Split([' ', '\n', '\r', '\t'], ...)` — must split on all whitespace. Splitting on space only causes markdown table rows to become single oversized tokens that exceed Ollama's context limit. `EmbedAsync` also truncates at 8000 chars as a safety net.
 
 **Canonical sections:** Defined in both `DefinitionBuilder.CanonicalSections` and `DefinitionGeneratorService.CanonicalSections` — must be kept in sync (15 sections).

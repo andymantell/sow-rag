@@ -11,4 +11,11 @@ public class DocumentChunk
 
     /// <summary>Zero-based index of this chunk within its source document.</summary>
     public int ChunkIndex { get; init; }
+
+    /// <summary>
+    /// LLM-redacted version of <see cref="Text"/>, with identifying details replaced by
+    /// generic placeholders. Populated at indexing time and cached. Falls back to
+    /// <see cref="Text"/> if not yet redacted.
+    /// </summary>
+    public string RedactedText { get; set; } = "";
 }

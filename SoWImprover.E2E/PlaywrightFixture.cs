@@ -107,6 +107,8 @@ public class PlaywrightFixture : IAsyncLifetime
                 var prompt = ci.ArgAt<string>(0);
                 if (prompt.Contains("classifying sections"))
                     return "{\"Introduction\": null, \"SCOPE OF WORK\": \"Scope of Work\"}";
+                if (prompt.Contains("redaction tool", StringComparison.OrdinalIgnoreCase))
+                    return prompt[(prompt.LastIndexOf("TEXT TO REDACT:", StringComparison.Ordinal) + 15)..].Trim();
                 if (prompt.Contains("rewrite", StringComparison.OrdinalIgnoreCase))
                     return "Improved section content from E2E stub.";
                 return "- Improved clarity and structure";

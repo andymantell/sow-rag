@@ -13,6 +13,7 @@ public class SoWImproverService(
     private const int ExplanationMaxTokens = 300;
     private const int MatchingMaxTokens = 600;
     private const int SnippetMaxChars = 200;
+    private const int MinWordsToImprove = 15;
 
     public async Task<ImprovementResult> ImproveAsync(
         string originalText, GoodDefinition definition,
@@ -47,6 +48,27 @@ public class SoWImproverService(
                     OriginalTitle = section.Title,
                     OriginalContent = section.Body,
                     Unrecognised = true
+                });
+                continue;
+            }
+
+            // Skip sections that are too short to meaningfully improve (titles, labels, etc.)
+            var bodyWordCount = section.Body.Split((char[])[' ', '\n', '\r', '\t'],
+                StringSplitOptions.RemoveEmptyEntries).Length;
+            if (bodyWordCount < MinWordsToImprove)
+            {
+                logger.LogInformation(
+                    "Section '{Title}' too short to improve ({Words} words), passing through",
+                    section.Title, bodyWordCount);
+                sectionResults.Add(new SectionResult
+                {
+                    OriginalTitle = section.Title,
+                    OriginalContent = section.Body,
+                    BaselineContent = section.Body,
+                    ImprovedContent = section.Body,
+                    MatchedSection = matchedName,
+                    Explanation = "- Section too short to improve; passed through unchanged.",
+                    DefinitionOfGoodText = definedSection.Content
                 });
                 continue;
             }
@@ -159,7 +181,8 @@ public class SoWImproverService(
             sectionDefinition = sectionDefinition[..MaxDefinitionChars] + "\n[truncated]";
 
         var context = chunks.Count > 0
-            ? string.Join("\n\n", chunks.Select(c => $"[{c.SourceFile}]: {c.Text}"))
+            ? string.Join("\n\n", chunks.Select((c, i) =>
+                $"{ChunkRedactor.AnonymiseSourceLabel(i)}: {(string.IsNullOrEmpty(c.RedactedText) ? ChunkRedactor.Redact(c.Text) : c.RedactedText)}"))
             : "No relevant examples found.";
 
         var prompt = $$"""
@@ -171,23 +194,31 @@ public class SoWImproverService(
             SoW conventions. It does NOT mean adding new facts, figures, dates, obligations, or
             requirements that are not already present in the original.
 
-            CRITICAL RULES:
-            - Every factual claim in your output must come from the SECTION TO REWRITE below.
-            - Do NOT invent specific dates, monetary values, parties, metrics, or obligations.
-            - If the original is vague, keep it vague — improve the wording, not the specificity.
-            - Use the QUALITY STANDARDS and EXAMPLES for style and structure guidance only.
-              Do not copy facts or details from them into the output.
-            - The output must be the rewritten section itself — actual contract/SoW language,
-              not commentary, not a description of improvements.
-            - Do not describe what the section should contain. Write the content directly.
+            CRITICAL RULES — VIOLATION OF THESE IS A FAILURE:
+            1. ONLY use facts from the SECTION TO REWRITE. Every name, date, amount, party,
+               organisation, contract reference, address, and obligation in your output MUST
+               appear in the original section. If the original does not name a party, you must
+               not name one. If it does not give a date, you must not give one.
+            2. Do NOT copy or paraphrase content from the EXAMPLES or QUALITY STANDARDS into
+               your output. They are for tone and structure guidance only. Treat them as belonging
+               to a completely different contract between different organisations.
+            3. Keep roughly the same length as the original. If the original is short (under 3
+               sentences), your output must also be short. Do not expand a brief section into
+               multiple paragraphs.
+            4. If the original is vague or sparse, improve the wording but keep it vague or sparse.
+               Do not add specificity, detail, or obligations that the original lacks.
+            5. The output must be the rewritten section itself — actual contract/SoW language,
+               not commentary, not a description of improvements.
 
-            QUALITY STANDARDS for "{{section.Title}}" (editorial reference — do not include in output):
+            QUALITY STANDARDS for "{{section.Title}}" (editorial guidance — do NOT include in output):
             {{sectionDefinition}}
 
-            RELEVANT EXAMPLES FROM KNOWN-GOOD SoWs (style reference only — do not copy content from these):
+            EXAMPLES from other SoWs (style/structure reference ONLY — these are from DIFFERENT
+            contracts between DIFFERENT organisations. Do NOT copy any facts, names, dates,
+            references, or obligations from these into your output):
             {{context}}
 
-            SECTION TO REWRITE:
+            SECTION TO REWRITE (this is the ONLY source of facts for your output):
             Title: {{section.Title}}
             Content:
             {{section.Body}}

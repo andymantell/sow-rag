@@ -4,4 +4,5 @@ sow-improver.db
 sow-improver.db-shm
 sow-improver.db-wal
 definition-cache.json
+redactions-cache.json
 __pycache__

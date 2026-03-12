@@ -9,6 +9,7 @@ public class DefinitionGeneratorService(
     DocumentLoader loader,
     DefinitionBuilder builder,
     IEmbeddingService embeddingService,
+    IChatService chatService,
     GoodDefinition definition,
     IConfiguration config,
     ILogger<DefinitionGeneratorService> logger) : BackgroundService
@@ -31,6 +32,9 @@ public class DefinitionGeneratorService(
 
         // Compute or load cached chunk embeddings
         var vectors = await GetOrComputeChunkVectorsAsync(chunks, folder, definition.SetProgress, ct);
+
+        // LLM-based redaction of identifying details (cached separately)
+        await RedactChunksAsync(chunks, folder, definition.SetProgress, ct);
 
         logger.LogInformation("Generating definition from {Count} document(s)", documents.Count);
         definition.SetProgress($"Starting analysis of {documents.Count} document(s)…");
@@ -199,6 +203,106 @@ public class DefinitionGeneratorService(
     }
 
     /// <summary>
+    /// Redacts identifying details from all chunks using regex pre-pass + LLM.
+    /// Results are cached in <c>{folder}/redactions-cache.json</c>, keyed by
+    /// corpus fingerprint and chat model name.
+    /// </summary>
+    private async Task RedactChunksAsync(
+        List<DocumentChunk> chunks,
+        string folder,
+        Action<string> progress,
+        CancellationToken ct)
+    {
+        var modelName = config.GetValue<bool>("Foundry:UseLocal")
+            ? config["Foundry:LocalModelName"] ?? "phi-4"
+            : config["Foundry:CloudModelName"] ?? "";
+        var cacheFile = Path.Combine(folder, "redactions-cache.json");
+        var fingerprint = ComputeCorpusFingerprint(folder);
+
+        // Try loading from cache
+        if (File.Exists(cacheFile))
+        {
+            try
+            {
+                progress("Loading redactions from cache…");
+                var cached = JsonSerializer.Deserialize<RedactionCacheFile>(
+                    await File.ReadAllTextAsync(cacheFile, ct));
+
+                if (cached?.Fingerprint == fingerprint
+                    && cached.Model == modelName
+                    && cached.Entries.Count == chunks.Count)
+                {
+                    // Populate RedactedText on each chunk from cache
+                    var lookup = cached.Entries
+                        .ToDictionary(e => $"{e.SourceFile}|{e.ChunkIndex}", e => e.RedactedText);
+
+                    foreach (var chunk in chunks)
+                    {
+                        var key = $"{chunk.SourceFile}|{chunk.ChunkIndex}";
+                        chunk.RedactedText = lookup.GetValueOrDefault(key, chunk.Text);
+                    }
+
+                    logger.LogInformation(
+                        "Loaded {Count} chunk redactions from cache", chunks.Count);
+                    return;
+                }
+
+                logger.LogInformation("Redaction cache is stale — recomputing");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not read redaction cache — recomputing");
+            }
+        }
+
+        // Recompute via LLM
+        logger.LogInformation(
+            "Redacting {Count} chunks via LLM (first run only — results will be cached)…",
+            chunks.Count);
+
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            progress($"Redacting chunk {i + 1} of {chunks.Count}…");
+            try
+            {
+                chunks[i].RedactedText = await ChunkRedactor.RedactWithLlmAsync(
+                    chunks[i].Text, chatService, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "LLM redaction failed for chunk {Index} — using regex fallback", i);
+                chunks[i].RedactedText = ChunkRedactor.Redact(chunks[i].Text);
+            }
+        }
+
+        // Persist cache
+        try
+        {
+            var cacheData = new RedactionCacheFile
+            {
+                Fingerprint = fingerprint,
+                Model = modelName,
+                Entries = chunks
+                    .Select(c => new RedactionCacheEntry
+                    {
+                        SourceFile = c.SourceFile,
+                        ChunkIndex = c.ChunkIndex,
+                        RedactedText = c.RedactedText
+                    })
+                    .ToList()
+            };
+            var json = JsonSerializer.Serialize(
+                cacheData, new JsonSerializerOptions { WriteIndented = false });
+            await File.WriteAllTextAsync(cacheFile, json, ct);
+            logger.LogInformation("Redaction cache saved to {Path}", cacheFile);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not save redaction cache — continuing without it");
+        }
+    }
+
+    /// <summary>
     /// SHA256 of sorted "filename|size" entries for all PDFs in the folder.
     /// Detects additions, removals, and replacements without hashing file contents.
     /// </summary>
@@ -243,4 +347,18 @@ file sealed class EmbeddingCacheEntry
     public int ChunkIndex { get; set; }
     public int GlobalIndex { get; set; }
     public float[] Vector { get; set; } = [];
+}
+
+file sealed class RedactionCacheFile
+{
+    public string Fingerprint { get; set; } = "";
+    public string Model { get; set; } = "";
+    public List<RedactionCacheEntry> Entries { get; set; } = [];
+}
+
+file sealed class RedactionCacheEntry
+{
+    public string SourceFile { get; set; } = "";
+    public int ChunkIndex { get; set; }
+    public string RedactedText { get; set; } = "";
 }
