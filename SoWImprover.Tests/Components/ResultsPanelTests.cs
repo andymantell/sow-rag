@@ -8,7 +8,8 @@ namespace SoWImprover.Tests.Components;
 public class ResultsPanelTests : BunitContext
 {
     private static ImprovementResult MakeResult(
-        Action<SectionResult>? configure = null, bool unrecognised = false)
+        Action<SectionResult>? configure = null, bool unrecognised = false,
+        string? matchedSection = "Matched", string? explanation = null)
     {
         var section = new SectionResult
         {
@@ -16,7 +17,8 @@ public class ResultsPanelTests : BunitContext
             OriginalContent = "Original body text.",
             ImprovedContent = "Improved body text.",
             BaselineContent = "Baseline body text.",
-            MatchedSection = "Matched",
+            MatchedSection = matchedSection,
+            Explanation = explanation,
             Unrecognised = unrecognised,
         };
         configure?.Invoke(section);
@@ -474,6 +476,215 @@ public class ResultsPanelTests : BunitContext
 
         Assert.Contains("Lower is better", cut.Markup);
         Assert.Contains("noise", cut.Markup);
+    }
+
+    // ── Baseline column rendering ──────────────────────────────
+
+    [Fact]
+    public void BaselineColumn_RendersBaselineContent()
+    {
+        var result = MakeResult(s => s.BaselineContent = "Baseline version of the text.");
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Baseline version of the text.", cut.Markup);
+    }
+
+    [Fact]
+    public void BaselineColumn_UnrecognisedSection_ShowsNotRecognised()
+    {
+        var result = MakeResult(s =>
+        {
+            s.ImprovedContent = null;
+            s.BaselineContent = null;
+        }, unrecognised: true);
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Section not recognised", cut.Markup);
+    }
+
+    [Fact]
+    public void BaselineColumn_SuppressedSection_ShowsExcludedNotice()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var result = MakeResult();
+        var suppressed = new HashSet<int> { 0 };
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, true)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.SuppressedSections, suppressed));
+
+        Assert.Contains("Section excluded from output", cut.Markup);
+    }
+
+    // ── Three-column layout ─────────────────────────────────────
+
+    [Fact]
+    public void ThreeColumnHeaders_Rendered()
+    {
+        var result = MakeResult();
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Original", cut.Markup);
+        Assert.Contains("Improved (no RAG)", cut.Markup);
+        Assert.Contains("Improved (with RAG)", cut.Markup);
+    }
+
+    // ── ShowExplanations=true ────────────────────────────────────
+
+    [Fact]
+    public void ShowExplanations_True_RendersWhatChangedDetails()
+    {
+        var result = MakeResult(explanation: "- Improved clarity\n- Added detail");
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, true));
+
+        Assert.Contains("What changed", cut.Markup);
+        Assert.Contains("Improved clarity", cut.Markup);
+        Assert.Contains("Added detail", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowExplanations_True_ShowsMatchedSectionName()
+    {
+        var result = MakeResult(
+            matchedSection: "Scope of Work",
+            explanation: "- Better structure");
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, true));
+
+        Assert.Contains("improved using Scope of Work", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowExplanations_False_HidesWhatChangedDetails()
+    {
+        var result = MakeResult(explanation: "- Improved clarity");
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.DoesNotContain("What changed", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowExplanations_True_FreeTextExplanation_RendersAsParagraph()
+    {
+        var result = MakeResult(explanation: "General improvements were made.");
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, true));
+
+        Assert.Contains("What changed", cut.Markup);
+        Assert.Contains("General improvements were made.", cut.Markup);
+    }
+
+    // ── ShowEditingFeatures flag ─────────────────────────────────
+
+    [Fact]
+    public void ShowEditingFeatures_False_HidesEditAndExcludeButtons()
+    {
+        var result = MakeResult();
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.DoesNotContain("Edit", cut.Markup);
+        Assert.DoesNotContain("Exclude section", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowEditingFeatures_True_ShowsExcludeButton()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var result = MakeResult();
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, true)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("Exclude section", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowEditingFeatures_False_HidesVersionDropdown()
+    {
+        var result = MakeResult(s => s.VersionCount = 3);
+        var versions = new Dictionary<int, List<SectionVersionInfo>>
+        {
+            [0] = [
+                new SectionVersionInfo(1, DateTime.UtcNow.AddMinutes(-10)),
+                new SectionVersionInfo(2, DateTime.UtcNow.AddMinutes(-5)),
+                new SectionVersionInfo(3, DateTime.UtcNow)
+            ]
+        };
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.VersionHistory, versions));
+
+        Assert.DoesNotContain("app-version-select", cut.Markup);
+    }
+
+    [Fact]
+    public void ShowEditingFeatures_True_VersionDropdown_HiddenWithSingleVersion()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var result = MakeResult(s => s.VersionCount = 1);
+        var versions = new Dictionary<int, List<SectionVersionInfo>>
+        {
+            [0] = [new SectionVersionInfo(1, DateTime.UtcNow)]
+        };
+
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, result)
+            .Add(x => x.ShowEditingFeatures, true)
+            .Add(x => x.ShowExplanations, false)
+            .Add(x => x.VersionHistory, versions));
+
+        Assert.DoesNotContain("app-version-select", cut.Markup);
+    }
+
+    // ── Null result ──────────────────────────────────────────────
+
+    [Fact]
+    public void NullResult_ShowsPlaceholder()
+    {
+        var cut = Render<ResultsPanel>(p => p
+            .Add(x => x.Result, (ImprovementResult?)null)
+            .Add(x => x.ShowEditingFeatures, false)
+            .Add(x => x.ShowExplanations, false));
+
+        Assert.Contains("diff-placeholder", cut.Markup);
+        Assert.DoesNotContain("diff-section-row", cut.Markup);
     }
 
     private static int CountOccurrences(string text, string pattern)

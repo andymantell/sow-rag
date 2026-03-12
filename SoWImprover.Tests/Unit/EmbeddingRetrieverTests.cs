@@ -103,6 +103,60 @@ public class EmbeddingRetrieverTests
     }
 
     [Fact]
+    public async Task RetrieveAsync_TopKLargerThanCorpus_ReturnsAllChunks()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "chunk0", ChunkIndex = 0 },
+            new() { SourceFile = "a.pdf", Text = "chunk1", ChunkIndex = 1 },
+        };
+        var vectors = new float[][]
+        {
+            [1, 0, 0],
+            [0, 1, 0],
+        };
+
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, topK: 10);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("chunk0", results[0].Text); // most similar first
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_ResultsOrderedByDescendingSimilarity()
+    {
+        var chunks = new List<DocumentChunk>
+        {
+            new() { SourceFile = "a.pdf", Text = "low", ChunkIndex = 0 },
+            new() { SourceFile = "a.pdf", Text = "mid", ChunkIndex = 1 },
+            new() { SourceFile = "a.pdf", Text = "high", ChunkIndex = 2 },
+        };
+        var vectors = new float[][]
+        {
+            [0.1f, 0.9f, 0],   // low similarity to [1,0,0]
+            [0.7f, 0.3f, 0],   // medium similarity
+            [0.95f, 0.05f, 0], // high similarity
+        };
+
+        var embedding = Substitute.For<IEmbeddingService>();
+        embedding.EmbedAsync("query", Arg.Any<CancellationToken>())
+            .Returns(new float[] { 1, 0, 0 });
+
+        var retriever = new EmbeddingRetriever(chunks, vectors, embedding, topK: 3);
+        var results = await retriever.RetrieveAsync("query");
+
+        Assert.Equal(3, results.Count);
+        Assert.Equal("high", results[0].Text);
+        Assert.Equal("mid", results[1].Text);
+        Assert.Equal("low", results[2].Text);
+    }
+
+    [Fact]
     public void ChunkCount_ReturnsCorrectCount()
     {
         var chunks = new List<DocumentChunk>

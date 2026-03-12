@@ -198,6 +198,70 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await Expect(_page.Locator(".diff-section-heading:has-text('Scope of Work')").First).ToBeVisibleAsync();
     }
 
+    // ── Baseline column (3-column layout) ──────────────────────
+
+    /// Verifies the baseline column (middle) renders baseline content.
+    [Fact]
+    public async Task ResultsPage_ShowsBaselineContent()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Column headers
+        await Expect(_page.Locator("text=Improved (no RAG)")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Improved (with RAG)")).ToBeVisibleAsync();
+
+        // Baseline content in the middle column (index 1)
+        var middleCol = _page.Locator(".diff-section-row").First.Locator(".diff-col").Nth(1);
+        await Expect(middleCol.Locator("text=This is the baseline intro.")).ToBeVisibleAsync();
+    }
+
+    // ── Score badges from pre-seeded data ────────────────────────
+
+    /// Verifies that score badges render when scores are pre-populated in the DB.
+    [Fact]
+    public async Task ResultsPage_ShowsScoreBadges()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Quality scores across all three columns
+        await Expect(_page.Locator("text=2/5").First).ToBeVisibleAsync();   // original
+        await Expect(_page.Locator("text=3/5").First).ToBeVisibleAsync();   // baseline
+        await Expect(_page.Locator("text=4/5").First).ToBeVisibleAsync();   // RAG
+
+        // Decimal scores
+        await Expect(_page.Locator("text=0.92").First).ToBeVisibleAsync();  // RAG faithfulness
+        await Expect(_page.Locator("text=0.78").First).ToBeVisibleAsync();  // context precision
+    }
+
+    /// Verifies that score badge tooltips are present and accessible.
+    [Fact]
+    public async Task ResultsPage_ScoreBadges_HaveTooltips()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // Info buttons with aria-labels
+        await Expect(_page.Locator("[aria-label='About quality score']").First).ToBeVisibleAsync();
+        await Expect(_page.Locator("[aria-label='About faithfulness score']").First).ToBeVisibleAsync();
+
+        // Tooltip content (hidden by default but in DOM)
+        await Expect(_page.Locator("[role='tooltip']").First).ToBeAttachedAsync();
+    }
+
+    /// Verifies that unrecognised sections do not show score badges.
+    [Fact]
+    public async Task ResultsPage_UnrecognisedSection_NoScoreBadges()
+    {
+        await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
+        await _page.WaitForSelectorAsync(".diff-section-row");
+
+        // The second section row is unrecognised — it should have no score badges
+        var unrecognisedRow = _page.Locator(".diff-section-row").Nth(1);
+        await Expect(unrecognisedRow.Locator(".app-score-badges")).ToHaveCountAsync(0);
+    }
+
     private async Task<Guid> SeedDocumentAsync()
     {
         var factory = _fixture.Services.GetRequiredService<IDbContextFactory<SoWDbContext>>();
@@ -222,9 +286,22 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
                     OriginalTitle = "Introduction",
                     OriginalContent = "This is the original intro.",
                     ImprovedContent = "This is the improved intro.",
+                    BaselineContent = "This is the baseline intro.",
                     MatchedSection = "Scope of Work",
                     Explanation = "- Improved clarity",
                     Unrecognised = false,
+                    OriginalQualityScore = 2,
+                    BaselineQualityScore = 3,
+                    RagQualityScore = 4,
+                    BaselineFaithfulnessScore = 0.85,
+                    RagFaithfulnessScore = 0.92,
+                    ContextPrecisionScore = 0.78,
+                    ContextRecallScore = 0.65,
+                    BaselineFactualCorrectnessScore = 0.80,
+                    RagFactualCorrectnessScore = 0.88,
+                    BaselineResponseRelevancyScore = 0.75,
+                    RagResponseRelevancyScore = 0.82,
+                    NoiseSensitivityScore = 0.15,
                     Versions =
                     [
                         new SectionVersionEntity

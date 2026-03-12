@@ -32,6 +32,14 @@ public class PlaywrightFixture : IAsyncLifetime
     /// <summary>Whether GoodDefinition starts as ready. Override in subclass for not-ready tests.</summary>
     protected virtual bool DefinitionReady => true;
 
+    /// <summary>Feature flag overrides. Override in subclass to test different flag states.</summary>
+    protected virtual Dictionary<string, string?> FeatureFlags => new()
+    {
+        ["FeatureManagement:EditingFeatures"] = "true",
+        ["FeatureManagement:Explanations"] = "true",
+        ["FeatureManagement:Evaluation"] = "false"
+    };
+
     public async Task InitializeAsync()
     {
         var solutionDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
@@ -46,13 +54,8 @@ public class PlaywrightFixture : IAsyncLifetime
 
         builder.WebHost.UseUrls("http://127.0.0.1:0");
 
-        // Enable feature flags that are off in appsettings.json but needed by E2E tests
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["FeatureManagement:EditingFeatures"] = "true",
-            ["FeatureManagement:Explanations"] = "true",
-            ["FeatureManagement:Evaluation"] = "false"
-        });
+        // Feature flags — override in subclass via FeatureFlags property
+        builder.Configuration.AddInMemoryCollection(FeatureFlags);
 
         ConfigureServices(builder.Services);
 
@@ -179,4 +182,17 @@ public class PlaywrightFixture : IAsyncLifetime
 public class DefinitionNotReadyFixture : PlaywrightFixture
 {
     protected override bool DefinitionReady => false;
+}
+
+/// <summary>
+/// Fixture variant where EditingFeatures and Explanations flags are off (production default).
+/// </summary>
+public class FeaturesOffFixture : PlaywrightFixture
+{
+    protected override Dictionary<string, string?> FeatureFlags => new()
+    {
+        ["FeatureManagement:EditingFeatures"] = "false",
+        ["FeatureManagement:Explanations"] = "false",
+        ["FeatureManagement:Evaluation"] = "false"
+    };
 }
