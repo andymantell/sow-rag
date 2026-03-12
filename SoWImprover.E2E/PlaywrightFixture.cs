@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
+using Microsoft.FeatureManagement;
 using Microsoft.Playwright;
 using NSubstitute;
 using SoWImprover.Data;
@@ -44,6 +45,14 @@ public class PlaywrightFixture : IAsyncLifetime
         });
 
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+
+        // Enable feature flags that are off in appsettings.json but needed by E2E tests
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["FeatureManagement:EditingFeatures"] = "true",
+            ["FeatureManagement:Explanations"] = "true",
+            ["FeatureManagement:Evaluation"] = "false"
+        });
 
         ConfigureServices(builder.Services);
 
@@ -138,6 +147,11 @@ public class PlaywrightFixture : IAsyncLifetime
         services.AddSingleton<FoundryClientFactory>();
         services.AddSingleton<DefinitionBuilder>();
         services.AddSingleton<SoWImproverService>();
+        services.AddSingleton<GpuMemoryManager>();
+        services.AddSingleton<EvaluationService>();
+
+        // Feature flags (Results.razor injects IFeatureManager)
+        services.AddFeatureManagement();
 
         // In-memory SQLite
         var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");

@@ -72,7 +72,7 @@ public class PdfDownloadTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
 
         // Exclude a section
         await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
-        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output").First).ToBeVisibleAsync();
 
         // Download again
         var excludedDownload = await _page.RunAndWaitForDownloadAsync(async () =>

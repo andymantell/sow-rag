@@ -52,8 +52,8 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         var leftCol = _page.Locator(".diff-col").First;
         await Expect(leftCol.Locator("text=This is the original intro.")).ToBeVisibleAsync();
 
-        // Improved content in the right column
-        var rightCol = _page.Locator(".diff-section-row").First.Locator(".diff-col").Nth(1);
+        // Improved content in the right column (3rd column: Original, Baseline, RAG-improved)
+        var rightCol = _page.Locator(".diff-section-row").First.Locator(".diff-col").Nth(2);
         await Expect(rightCol.Locator("text=This is the improved intro.")).ToBeVisibleAsync();
     }
 
@@ -65,7 +65,7 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         await _page.GotoAsync($"{_fixture.BaseUrl}/results/{_documentId}");
         await _page.WaitForSelectorAsync(".diff-section-row");
 
-        await Expect(_page.Locator("text=Section not recognised")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section not recognised").First).ToBeVisibleAsync();
     }
 
     /// Verifies that clicking "Exclude section" hides the section content and
@@ -79,7 +79,7 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
         // Click the first "Exclude section" button
         await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
 
-        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output").First).ToBeVisibleAsync();
     }
 
     /// Verifies that re-including a previously excluded section removes the
@@ -92,10 +92,10 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
 
         // Exclude then re-include
         await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
-        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output").First).ToBeVisibleAsync();
 
         await _page.Locator("button:has-text('Include section')").First.ClickAsync();
-        await Expect(_page.Locator("text=Section excluded from output")).Not.ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output")).ToHaveCountAsync(0);
 
         // Section content should be restored
         await Expect(_page.Locator("text=This is the improved intro.")).ToBeVisibleAsync();
@@ -171,14 +171,14 @@ public class ResultsPageTests : IClassFixture<PlaywrightFixture>, IAsyncLifetime
 
         // Exclude the first section
         await _page.Locator("button:has-text('Exclude section')").First.ClickAsync();
-        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output").First).ToBeVisibleAsync();
 
         // Full page reload
         await _page.ReloadAsync();
         await _page.WaitForSelectorAsync(".diff-section-row");
 
         // Section should still be excluded
-        await Expect(_page.Locator("text=Section excluded from output")).ToBeVisibleAsync();
+        await Expect(_page.Locator("text=Section excluded from output").First).ToBeVisibleAsync();
         await Expect(_page.Locator("button:has-text('Include section')")).ToBeVisibleAsync();
     }
 
