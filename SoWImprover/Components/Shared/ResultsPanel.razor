@@ -9,6 +9,36 @@
     }
     else
     {
+        @if (EvaluationSummary is not null || SummaryLoading)
+        {
+            <div class="govuk-notification-banner @(SummaryIsPartial ? "app-summary-partial" : "")"
+                 role="region"
+                 aria-labelledby="eval-summary-title"
+                 aria-live="polite">
+                <div class="govuk-notification-banner__header">
+                    <h2 class="govuk-notification-banner__title" id="eval-summary-title">
+                        Evaluation Summary
+                    </h2>
+                </div>
+                <div class="govuk-notification-banner__content">
+                    @if (SummaryIsPartial && TotalEvaluatingSections > 0)
+                    {
+                        <p class="govuk-body-s app-summary-status">
+                            @SectionsEvaluated of @TotalEvaluatingSections sections evaluated
+                        </p>
+                    }
+                    @if (EvaluationSummary is not null)
+                    {
+                        @MarkdownRenderer.ToMarkupString(EvaluationSummary)
+                    }
+                    @if (SummaryLoading)
+                    {
+                        <span class="app-badge-spinner" aria-label="Updating summary"></span>
+                    }
+                </div>
+            </div>
+        }
+
         @* Column headers *@
         <div class="diff-panels">
             <div class="diff-header-row">
@@ -325,6 +355,11 @@
     [Parameter] public HashSet<int> SuppressedSections { get; set; } = [];
     [Parameter] public HashSet<int> EvaluatingSections { get; set; } = [];
     [Parameter] public HashSet<int> EvaluationAttemptedSections { get; set; } = [];
+    [Parameter] public string? EvaluationSummary { get; set; }
+    [Parameter] public bool SummaryIsPartial { get; set; }
+    [Parameter] public bool SummaryLoading { get; set; }
+    [Parameter] public int SectionsEvaluated { get; set; }
+    [Parameter] public int TotalEvaluatingSections { get; set; }
     [Parameter] public EventCallback OnSuppressedChanged { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionRestored { get; set; }

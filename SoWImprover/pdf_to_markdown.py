@@ -16,7 +16,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 try:
-    md = pymupdf4llm.to_markdown(sys.argv[1])
+    md = pymupdf4llm.to_markdown(sys.argv[1], header=False, footer=False)
     sys.stdout.buffer.write(md.encode("utf-8"))
 except Exception as e:
     print(f"Error converting PDF: {e}", file=sys.stderr)

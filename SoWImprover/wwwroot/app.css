@@ -3,7 +3,7 @@
    centres once it reaches max-width (below 2060px wide the calc is ≤30px
    so max() keeps the GOV.UK default; above it the container self-centres). */
 .govuk-width-container {
-  max-width: 2000px;
+  max-width: none;
 }
 
 /* Constrains prose/intro text to a comfortable reading width */
@@ -11,19 +11,12 @@
   max-width: 60em;
 }
 @media (min-width: 40.0625em) {
-  .govuk-width-container {
-    margin-right: max(30px, calc(50% - 1000px));
-    margin-left:  max(30px, calc(50% - 1000px));
+  .govuk-width-container {  
+    margin-right: 30px;
+    margin-left:  30px;
   }
 }
-@media (min-width: 40.0625em) {
-  @supports (margin: max(calc(0px))) {
-    .govuk-width-container {
-      margin-right: max(30px, calc(50% - 1000px + env(safe-area-inset-right)));
-      margin-left:  max(30px, calc(50% - 1000px + env(safe-area-inset-left)));
-    }
-  }
-}
+
 
 /* ── Footer: status info ──────────────────────────────────── */
 .app-status-bar__info {
@@ -403,4 +396,15 @@ del {
     border-left: none;
     border-top: 1px dashed #b1b4b6;
   }
+}
+
+/* ── Evaluation summary banner ─────────────────────────────────────────────── */
+.app-summary-partial {
+    opacity: 0.85;
+    border-left: 4px dashed #b1b4b6;
+}
+
+.app-summary-status {
+    color: #505a5f;
+    margin-bottom: 0.5rem;
 }

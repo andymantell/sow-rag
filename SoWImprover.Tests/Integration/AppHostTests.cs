@@ -72,6 +72,14 @@ public class AppHostTests : IClassFixture<AppHostTests.SoWWebApplicationFactory>
                 RemoveService<IEmbeddingService>(services);
                 services.AddSingleton(embedding);
 
+                // Stub IEvaluationSummaryService (no evaluation endpoint in test config)
+                var summaryService = Substitute.For<IEvaluationSummaryService>();
+                summaryService.GenerateSummaryAsync(
+                    Arg.Any<List<SectionSummaryInput>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                    .Returns("");
+                RemoveService<IEvaluationSummaryService>(services);
+                services.AddSingleton(summaryService);
+
                 // Replace DB with in-memory SQLite
                 RemoveService<IDbContextFactory<SoWDbContext>>(services);
                 var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
