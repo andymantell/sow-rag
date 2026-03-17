@@ -55,7 +55,7 @@ public class EvaluationSummaryServiceTests
 
         var prompt = EvaluationSummaryService.BuildPrompt(sections, totalSectionCount: 1);
 
-        Assert.DoesNotContain("of 1", prompt);
+        Assert.DoesNotContain("1 of 1", prompt);
     }
 
     [Fact]

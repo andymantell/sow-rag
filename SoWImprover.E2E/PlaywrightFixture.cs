@@ -155,6 +155,13 @@ public class PlaywrightFixture : IAsyncLifetime
         services.AddSingleton<GpuMemoryManager>();
         services.AddSingleton<EvaluationService>();
 
+        // Stub IEvaluationSummaryService (Results.razor injects it for summary generation)
+        var summaryService = Substitute.For<IEvaluationSummaryService>();
+        summaryService.GenerateSummaryAsync(
+                Arg.Any<List<SectionSummaryInput>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns("Stub evaluation summary.");
+        services.AddSingleton(summaryService);
+
         // Feature flags (Results.razor injects IFeatureManager)
         services.AddFeatureManagement();
 
