@@ -25,7 +25,7 @@ Read the experiment results and write a technical analysis report comparing RAG 
    - **Corpus Assessment** — your independent qualitative review of each corpus document and its RAG suitability
    - **Discussion** — interpretation, limitations (evaluator bias, sample size, local LLM ceiling, single-run variance)
    - **Recommendations** — concrete next steps
-7. Save to `experiment-report-YYYY-MM-DD.md` at repo root (use today's date).
+7. Save to `reports/experiment-report-YYYY-MM-DD.md` (use today's date).
 
 ## Tone
 
