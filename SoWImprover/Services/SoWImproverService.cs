@@ -15,7 +15,7 @@ public class SoWImproverService(
     private const int SnippetMaxChars = 200;
     private const int MinWordsToImprove = 15;
 
-    public async Task<ImprovementResult> ImproveAsync(
+    public virtual async Task<ImprovementResult> ImproveAsync(
         string originalText, GoodDefinition definition,
         IProgress<string>? progress = null, CancellationToken ct = default)
     {

@@ -291,6 +291,33 @@ export Foundry__CloudApiKey="your-key"
 
 ---
 
+## Running the RAG vs Baseline Experiment
+
+### Prerequisites
+- Local LLM running (Foundry or Ollama) with chat and embedding models
+- Python with `pymupdf4llm` and `ragas` packages installed
+- Claude CLI installed (for report generation)
+
+### Step 1: Run the batch evaluation
+
+```bash
+dotnet run --project SoWImprover.BatchRunner -- "C:\path\to\test-pdfs"
+```
+
+Processes every PDF in the folder through baseline and RAG improvement, runs Ragas evaluation, and exports results to `experiment-results.json`. This takes a long time with local models — expect ~15-30 minutes per document.
+
+Do not run the main app at the same time (SQLite concurrency).
+
+### Step 2: Generate the analysis report
+
+```bash
+claude /experiment-report
+```
+
+Reads the exported results and corpus documents, then writes a technical analysis report comparing RAG vs baseline performance. Saved to `experiment-report-YYYY-MM-DD.md`.
+
+---
+
 ## Architecture
 
 - **Frontend:** Blazor Server (interactive components, GOV.UK Design System styling, no JS framework)

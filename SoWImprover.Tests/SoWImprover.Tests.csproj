@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SoWImprover\SoWImprover.csproj" />
+    <ProjectReference Include="..\SoWImprover.BatchRunner\SoWImprover.BatchRunner.csproj" />
   </ItemGroup>
 
 </Project>

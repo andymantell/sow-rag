@@ -24,6 +24,8 @@ builder.Services.AddSingleton<EvaluationService>();
 builder.Services.AddSingleton<IEvaluationSummaryService, EvaluationSummaryService>();
 builder.Services.AddSingleton<GpuMemoryManager>();
 
+builder.Services.AddSingleton<CorpusInitialisationService>();
+
 // BackgroundService: generates the definition of good at startup
 builder.Services.AddHostedService<DefinitionGeneratorService>();
 

@@ -1,0 +1,167 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SoWImprover.BatchRunner;
+using SoWImprover.Data;
+using SoWImprover.Models;
+using SoWImprover.Services;
+
+if (args.Length < 1)
+{
+    Console.Error.WriteLine("Usage: SoWImprover.BatchRunner <test-folder-path>");
+    return 1;
+}
+
+var testFolder = Path.GetFullPath(args[0]);
+if (!Directory.Exists(testFolder))
+{
+    Console.Error.WriteLine($"Test folder not found: {testFolder}");
+    return 1;
+}
+
+var pdfs = Directory.GetFiles(testFolder, "*.pdf");
+if (pdfs.Length == 0)
+{
+    Console.Error.WriteLine($"No PDF files found in: {testFolder}");
+    return 1;
+}
+
+var log = new ConsoleLogger();
+
+// Find the main app directory by walking up from executable
+var mainAppDir = FindMainAppDir();
+var config = new ConfigurationBuilder()
+    .SetBasePath(mainAppDir)
+    .AddJsonFile("appsettings.json", optional: false)
+    .Build();
+
+// Build DI container (mirrors main app, minus Blazor and hosted services)
+var services = new ServiceCollection();
+services.AddSingleton<IConfiguration>(config);
+services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+services.AddSingleton<GoodDefinition>();
+services.AddSingleton<DocumentLoader>();
+services.AddSingleton<FoundryClientFactory>();
+services.AddSingleton<IChatService, ChatService>();
+services.AddSingleton<IEmbeddingService, EmbeddingService>();
+services.AddSingleton<DefinitionBuilder>();
+services.AddSingleton<CorpusInitialisationService>();
+services.AddSingleton<SoWImproverService>();
+services.AddSingleton<EvaluationService>();
+services.AddSingleton<IEvaluationSummaryService, EvaluationSummaryService>();
+services.AddSingleton<GpuMemoryManager>();
+services.AddDbContextFactory<SoWDbContext>(opts =>
+    opts.UseSqlite($"Data Source={Path.Combine(mainAppDir, "sow-improver.db")}"));
+
+var sp = services.BuildServiceProvider();
+
+// Ensure DB exists
+using (var db = sp.GetRequiredService<IDbContextFactory<SoWDbContext>>().CreateDbContext())
+    db.Database.EnsureCreated();
+
+var definition = sp.GetRequiredService<GoodDefinition>();
+var corpusInit = sp.GetRequiredService<CorpusInitialisationService>();
+var corpusFolder = config["Docs:KnownGoodFolder"] ?? "./sample-sows";
+
+log.Log("=== SoW Improver Batch Runner ===");
+log.Log($"Test folder: {testFolder} ({pdfs.Length} PDFs found)");
+log.Log($"Corpus:      {Path.GetFullPath(Path.Combine(mainAppDir, corpusFolder))}");
+log.Log($"Chat model:  {config["Foundry:LocalModelName"]} | Embedding model: {config["Ollama:EmbeddingModelName"]}");
+log.Log("");
+
+// Phase 1: Corpus initialisation
+log.Log("--- Corpus Initialisation ---");
+try
+{
+    await corpusInit.InitialiseAsync(definition, msg => log.Log(msg), CancellationToken.None);
+}
+catch (Exception ex)
+{
+    log.Log($"FATAL: Corpus initialisation failed: {ex.Message}");
+    return 1;
+}
+log.Log("");
+
+// Phase 2: Document processing + evaluation loop
+var dbFactory = sp.GetRequiredService<IDbContextFactory<SoWDbContext>>();
+var pipeline = new BatchPipeline(
+    sp.GetRequiredService<DocumentLoader>(),
+    sp.GetRequiredService<SoWImproverService>(),
+    dbFactory,
+    log);
+var evalRunner = new EvaluationRunner(
+    sp.GetRequiredService<EvaluationService>(),
+    sp.GetRequiredService<IEvaluationSummaryService>(),
+    dbFactory,
+    log);
+var gpuMemory = sp.GetRequiredService<GpuMemoryManager>();
+var allResults = new List<(DocumentEntity Entity, ImprovementResult Result)>();
+
+for (var i = 0; i < pdfs.Length; i++)
+{
+    var pdf = pdfs[i];
+    log.Log($"=== Document {i + 1}/{pdfs.Length}: {Path.GetFileName(pdf)} ===");
+
+    try
+    {
+        await gpuMemory.PrepareForImprovementAsync();
+        var (entity, result) = await pipeline.ProcessDocumentAsync(pdf, definition, CancellationToken.None);
+        allResults.Add((entity, result));
+
+        log.Log("");
+        await evalRunner.EvaluateDocumentAsync(entity, result.Sections, CancellationToken.None);
+    }
+    catch (Exception ex)
+    {
+        log.Log($"ERROR: Failed to process {Path.GetFileName(pdf)}: {ex.Message}");
+        log.Log($"  {ex.GetType().Name}: {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+        continue;
+    }
+
+    log.Log("");
+}
+
+// Phase 3: Export
+log.Log("=== All documents processed ===");
+
+var corpusDocs = Directory.GetFiles(Path.Combine(mainAppDir, corpusFolder), "*.pdf")
+    .Select(Path.GetFileName)
+    .Where(f => f is not null)
+    .ToList();
+
+var json = ExperimentExporter.BuildJson(
+    allResults,
+    corpusFolder: corpusFolder,
+    corpusDocuments: corpusDocs!,
+    totalChunks: definition.ChunkCount,
+    chatModel: config["Foundry:LocalModelName"] ?? "unknown",
+    embeddingModel: config["Ollama:EmbeddingModelName"] ?? "unknown");
+
+var exportPath = Path.Combine(Directory.GetCurrentDirectory(), "experiment-results.json");
+await ExperimentExporter.WriteAsync(exportPath, json);
+
+log.Log($"Results exported to: {exportPath}");
+log.Log($"Database at: {Path.Combine(mainAppDir, "sow-improver.db")}");
+log.Log("");
+log.Log("To generate the analysis report, run:");
+log.Log("  claude /experiment-report");
+
+return 0;
+
+static string FindMainAppDir()
+{
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, "SoWImprover", "appsettings.json");
+        if (File.Exists(candidate))
+            return Path.Combine(dir.FullName, "SoWImprover");
+        dir = dir.Parent;
+    }
+    var fallback = Path.GetFullPath("SoWImprover");
+    if (File.Exists(Path.Combine(fallback, "appsettings.json")))
+        return fallback;
+    throw new FileNotFoundException(
+        "Cannot find SoWImprover/appsettings.json. Run from the repo root or ensure the main app directory is an ancestor.");
+}

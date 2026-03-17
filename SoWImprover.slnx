@@ -2,4 +2,5 @@
   <Project Path="SoWImprover.Tests/SoWImprover.Tests.csproj" />
   <Project Path="SoWImprover.E2E/SoWImprover.E2E.csproj" />
   <Project Path="SoWImprover/SoWImprover.csproj" />
+  <Project Path="SoWImprover.BatchRunner/SoWImprover.BatchRunner.csproj" />
 </Solution>

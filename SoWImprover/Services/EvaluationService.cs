@@ -69,7 +69,7 @@ public class EvaluationService(
     /// Streams evaluation results one section at a time. Each yield returns
     /// (sectionIndex, scores) as soon as the Python script finishes that section.
     /// </summary>
-    public async IAsyncEnumerable<(int Index, SectionScores Scores)> EvaluateStreamingAsync(
+    public virtual async IAsyncEnumerable<(int Index, SectionScores Scores)> EvaluateStreamingAsync(
         List<SectionInput> sections,
         [EnumeratorCancellation] CancellationToken ct = default)
     {

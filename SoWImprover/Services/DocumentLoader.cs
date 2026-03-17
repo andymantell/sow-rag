@@ -22,7 +22,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
     /// <see cref="GetCachedTexts"/>, avoiding duplicate subprocess calls.
     /// Throws if no PDFs are found.
     /// </summary>
-    public List<DocumentChunk> LoadFolder(string folderPath)
+    public virtual List<DocumentChunk> LoadFolder(string folderPath)
     {
         var fullPath = Path.GetFullPath(folderPath);
         var files = Directory.GetFiles(fullPath, "*.pdf", SearchOption.TopDirectoryOnly);
@@ -47,7 +47,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
     /// Returns the raw texts extracted during the most recent <see cref="LoadFolder"/> call.
     /// Avoids re-running the Python subprocess for corpus documents already extracted at startup.
     /// </summary>
-    public IReadOnlyList<(string FileName, string Text)> GetCachedTexts()
+    public virtual IReadOnlyList<(string FileName, string Text)> GetCachedTexts()
         => _extractedTexts.Select(kv => (kv.Key, kv.Value)).ToList();
 
     /// <summary>Synchronous extraction — used during corpus loading at startup.</summary>
