@@ -42,15 +42,16 @@ public class EvaluationRunner(
         }).ToList();
 
         log.Log("Running evaluation...");
-        var evalIndex = 0;
+        var completedSections = new HashSet<int>();
+        var metricsReceived = 0;
         await foreach (var (streamIdx, scores) in evaluator.EvaluateStreamingAsync(inputs, ct))
         {
             var (entityIdx, result) = evaluable[streamIdx];
             var sec = entity.Sections[entityIdx];
-            evalIndex++;
+            metricsReceived++;
 
             // Merge scores into section result (in-memory, for export)
-            // Use null-coalescing — EvaluateStreamingAsync can yield partial updates
+            // Use null-coalescing — EvaluateStreamingAsync yields partial updates
             result.OriginalQualityScore = scores.OriginalQualityScore ?? result.OriginalQualityScore;
             result.BaselineQualityScore = scores.BaselineQualityScore ?? result.BaselineQualityScore;
             result.RagQualityScore = scores.RagQualityScore ?? result.RagQualityScore;
@@ -67,13 +68,23 @@ public class EvaluationRunner(
             // Persist scores to DB
             await PersistScoresAsync(sec, scores, ct);
 
-            // Log
-            log.Log($"  [{evalIndex}/{evaluable.Count}] {sec.MatchedSection ?? sec.OriginalTitle}", indent: 1);
-            log.Log($"    Original: {scores.OriginalQualityScore} | Baseline: {scores.BaselineQualityScore} | RAG: {scores.RagQualityScore}", indent: 2);
-            log.Log($"    Faithfulness — baseline: {scores.BaselineFaithfulnessScore:F2} | RAG: {scores.RagFaithfulnessScore:F2}", indent: 2);
-            log.Log($"    Factual correctness — baseline: {scores.BaselineFactualCorrectnessScore:F2} | RAG: {scores.RagFactualCorrectnessScore:F2}", indent: 2);
-            log.Log($"    Response relevancy — baseline: {scores.BaselineResponseRelevancyScore:F2} | RAG: {scores.RagResponseRelevancyScore:F2}", indent: 2);
-            log.Log($"    Context — precision: {scores.ContextPrecisionScore:F2} | recall: {scores.ContextRecallScore:F2} | noise: {scores.NoiseSensitivityScore:F2}", indent: 2);
+            // Check if this section now has all metrics — log once when complete
+            if (!completedSections.Contains(streamIdx) && result.NoiseSensitivityScore.HasValue)
+            {
+                completedSections.Add(streamIdx);
+                var sectionName = sec.MatchedSection ?? sec.OriginalTitle;
+                log.Log($"  [{completedSections.Count}/{evaluable.Count}] {sectionName}", indent: 1);
+                log.Log($"    Original: {result.OriginalQualityScore} | Baseline: {result.BaselineQualityScore} | RAG: {result.RagQualityScore}", indent: 2);
+                log.Log($"    Faithfulness — baseline: {result.BaselineFaithfulnessScore:F2} | RAG: {result.RagFaithfulnessScore:F2}", indent: 2);
+                log.Log($"    Factual correctness — baseline: {result.BaselineFactualCorrectnessScore:F2} | RAG: {result.RagFactualCorrectnessScore:F2}", indent: 2);
+                log.Log($"    Response relevancy — baseline: {result.BaselineResponseRelevancyScore:F2} | RAG: {result.RagResponseRelevancyScore:F2}", indent: 2);
+                log.Log($"    Context — precision: {result.ContextPrecisionScore:F2} | recall: {result.ContextRecallScore:F2} | noise: {result.NoiseSensitivityScore:F2}", indent: 2);
+            }
+            else if (!completedSections.Contains(streamIdx))
+            {
+                // Brief progress for partial updates
+                log.Log($"  {sec.MatchedSection ?? sec.OriginalTitle}: metric {metricsReceived} received...", indent: 1);
+            }
         }
 
         log.Log("Evaluation complete.");

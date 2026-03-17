@@ -9,12 +9,12 @@ A locally-hosted Blazor Server web application that uses RAG and a local LLM to 
 ### 1. .NET 8 SDK
 Download from https://dotnet.microsoft.com/download/dotnet/8
 
-### 2. Python 3 + pymupdf4llm
+### 2. Python 3 + packages
 
-PDF text extraction runs via a Python subprocess:
+PDF text extraction and evaluation run via Python subprocesses:
 
 ```bash
-pip install pymupdf4llm
+pip install pymupdf4llm pymupdf-layout ragas
 ```
 
 ### 3. Ollama (for local embeddings)

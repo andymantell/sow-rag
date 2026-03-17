@@ -36,6 +36,13 @@ var config = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: false)
     .Build();
 
+// Resolve corpus folder relative to main app dir (config has relative path like "./sample-sows")
+var corpusFolder = config["Docs:KnownGoodFolder"] ?? "./sample-sows";
+var resolvedCorpusFolder = Path.GetFullPath(Path.Combine(mainAppDir, corpusFolder));
+
+// Override config with absolute path so CorpusInitialisationService finds it
+config["Docs:KnownGoodFolder"] = resolvedCorpusFolder;
+
 // Build DI container (mirrors main app, minus Blazor and hosted services)
 var services = new ServiceCollection();
 services.AddSingleton<IConfiguration>(config);
@@ -62,11 +69,10 @@ using (var db = sp.GetRequiredService<IDbContextFactory<SoWDbContext>>().CreateD
 
 var definition = sp.GetRequiredService<GoodDefinition>();
 var corpusInit = sp.GetRequiredService<CorpusInitialisationService>();
-var corpusFolder = config["Docs:KnownGoodFolder"] ?? "./sample-sows";
 
 log.Log("=== SoW Improver Batch Runner ===");
 log.Log($"Test folder: {testFolder} ({pdfs.Length} PDFs found)");
-log.Log($"Corpus:      {Path.GetFullPath(Path.Combine(mainAppDir, corpusFolder))}");
+log.Log($"Corpus:      {resolvedCorpusFolder}");
 log.Log($"Chat model:  {config["Foundry:LocalModelName"]} | Embedding model: {config["Ollama:EmbeddingModelName"]}");
 log.Log("");
 
@@ -125,14 +131,14 @@ for (var i = 0; i < pdfs.Length; i++)
 // Phase 3: Export
 log.Log("=== All documents processed ===");
 
-var corpusDocs = Directory.GetFiles(Path.Combine(mainAppDir, corpusFolder), "*.pdf")
+var corpusDocs = Directory.GetFiles(resolvedCorpusFolder, "*.pdf")
     .Select(Path.GetFileName)
     .Where(f => f is not null)
     .ToList();
 
 var json = ExperimentExporter.BuildJson(
     allResults,
-    corpusFolder: corpusFolder,
+    corpusFolder: resolvedCorpusFolder,
     corpusDocuments: corpusDocs!,
     totalChunks: definition.ChunkCount,
     chatModel: config["Foundry:LocalModelName"] ?? "unknown",

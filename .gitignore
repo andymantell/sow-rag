@@ -8,4 +8,3 @@ redactions-cache.json
 improvement-log.md
 __pycache__
 experiment-results.json
-experiment-report-*.md
