@@ -207,7 +207,8 @@ public class SoWImproverService(
 
             Your task is to improve the section below so that it reads as polished, professional SoW content.
             "Improve" means: better structure, clearer language, more precise wording, and proper
-            SoW conventions. It does NOT mean adding new facts, figures, dates, obligations, or
+            SoW conventions. Preserve bullet points and lists where they aid readability.
+            It does NOT mean adding new facts, figures, dates, obligations, or
             requirements that are not already present in the original.
 
             CRITICAL RULES — VIOLATION OF THESE IS A FAILURE:
