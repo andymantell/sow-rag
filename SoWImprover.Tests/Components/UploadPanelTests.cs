@@ -42,7 +42,6 @@ public class UploadPanelTests : BunitContext
             new DbContextOptionsBuilder<SoWDbContext>().UseSqlite(_connection).Options);
         db.Database.EnsureCreated();
 
-        Services.AddSingleton(new GpuMemoryManager(config, NullLogger<GpuMemoryManager>.Instance));
         Services.AddLogging();
     }
 

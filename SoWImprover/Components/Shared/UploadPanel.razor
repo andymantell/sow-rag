@@ -4,7 +4,6 @@
 @inject IDbContextFactory<SoWDbContext> DbFactory
 @inject NavigationManager Nav
 @inject ILogger<UploadPanel> Logger
-@inject GpuMemoryManager GpuMemory
 <form @onsubmit="HandleImproveClicked" @onsubmit:preventDefault>
 
 @if (_errors.Count > 0)
@@ -148,9 +147,6 @@
                 _errors.Add(("file-input", "No text could be extracted - the PDF may be scanned or image-based"));
                 return;
             }
-
-            // Free GPU VRAM from any leftover evaluation model before running improvement
-            await GpuMemory.PrepareForImprovementAsync();
 
             var progress = new Progress<string>(msg =>
             {

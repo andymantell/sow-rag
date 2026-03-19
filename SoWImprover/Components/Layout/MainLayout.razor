@@ -69,7 +69,7 @@
     protected override void OnInitialized()
     {
         _modelLabel = Config.GetValue<bool>("Foundry:UseLocal")
-            ? $"Local · {Config["Foundry:LocalModelName"]}"
+            ? $"Local · {Config["Ollama:ChatModelName"]}"
             : $"Cloud · {Config["Foundry:CloudModelName"]}";
 
         if (!Definition.IsReady)

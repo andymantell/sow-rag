@@ -47,7 +47,7 @@ public class CorpusInitialisationServiceTests
                 .Returns(new[] { new float[] { 0.1f, 0.2f } });
 
             var chatService = Substitute.For<IChatService>();
-            chatService.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            chatService.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
                 .Returns("Redacted text");
 
             var definitionBuilder = new DefinitionBuilder(chatService, NullLogger<DefinitionBuilder>.Instance);
@@ -56,7 +56,7 @@ public class CorpusInitialisationServiceTests
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Foundry:UseLocal"] = "true",
-                    ["Foundry:LocalModelName"] = "phi-4",
+                    ["Ollama:ChatModelName"] = "qwen3.5:27b",
                     ["Ollama:EmbeddingModelName"] = "nomic-embed-text",
                     ["Docs:KnownGoodFolder"] = tempDir,
                     ["Docs:TopKChunks"] = "5",

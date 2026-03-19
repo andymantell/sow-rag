@@ -56,7 +56,7 @@ public class CorpusInitialisationService(
         CancellationToken ct)
     {
         var modelName = configuration.GetValue<bool>("Foundry:UseLocal")
-            ? configuration["Foundry:LocalModelName"] ?? "phi-4"
+            ? configuration["Ollama:ChatModelName"] ?? "qwen3.5:27b"
             : configuration["Foundry:CloudModelName"] ?? "";
         var cacheFile = Path.Combine(folder, "definition-cache.json");
         var fingerprint = ComputeCorpusFingerprint(folder);
@@ -129,7 +129,7 @@ public class CorpusInitialisationService(
     {
         var modelName = configuration.GetValue<bool>("Foundry:UseLocal")
             ? configuration["Ollama:EmbeddingModelName"] ?? "nomic-embed-text"
-            : configuration["Foundry:CloudEmbeddingDeployment"] ?? "text-embedding-3-small";
+            : configuration["Foundry:CloudEmbeddingDeployment"] ?? "";
         var cacheFile = Path.Combine(folder, "embeddings-cache.json");
         var fingerprint = ComputeCorpusFingerprint(folder);
 
@@ -211,7 +211,7 @@ public class CorpusInitialisationService(
         CancellationToken ct)
     {
         var modelName = configuration.GetValue<bool>("Foundry:UseLocal")
-            ? configuration["Foundry:LocalModelName"] ?? "phi-4"
+            ? configuration["Ollama:ChatModelName"] ?? "qwen3.5:27b"
             : configuration["Foundry:CloudModelName"] ?? "";
         var cacheFile = Path.Combine(folder, "redactions-cache.json");
         var fingerprint = ComputeCorpusFingerprint(folder);

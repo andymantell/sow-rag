@@ -8,8 +8,8 @@ public class SoWImproverService(
     IChatService chatService,
     ILogger<SoWImproverService> logger)
 {
-    private const int MaxDefinitionChars = 2_000;
-    private const int ImprovementMaxTokens = 2048;
+    private const int MaxDefinitionChars = 4_000;
+    private const int ImprovementMaxTokens = 4096;
     private const int ExplanationMaxTokens = 300;
     private const int MatchingMaxTokens = 600;
     private const int SnippetMaxChars = 200;
@@ -244,7 +244,7 @@ public class SoWImproverService(
             """;
 
         var improved = LlmOutputHelper.StripCodeFence(
-            (await chatService.CompleteAsync(prompt, ImprovementMaxTokens, ct)).Trim());
+            (await chatService.CompleteAsync(prompt, ImprovementMaxTokens, ct, think: false)).Trim());
         // Strip a leading heading the model may have hallucinated — \A anchors to string start only
         improved = Regex.Replace(improved, @"\A#{1,2}[^\n]*\n+", "").TrimStart();
         return improved;

@@ -2,7 +2,7 @@ namespace SoWImprover.Services;
 
 public class EvaluationSummaryService : IEvaluationSummaryService
 {
-    private const int MaxContentLength = 2000;
+    private const int MaxContentLength = 4000;
     private readonly IChatService _chatService;
     private readonly ILogger<EvaluationSummaryService> _logger;
 
@@ -21,7 +21,7 @@ public class EvaluationSummaryService : IEvaluationSummaryService
 
         try
         {
-            var response = await _chatService.CompleteAsync(prompt, 1024, ct);
+            var response = await _chatService.CompleteAsync(prompt, 1024, ct, think: false);
             return LlmOutputHelper.StripCodeFence(response);
         }
         catch (Exception ex)

@@ -224,7 +224,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_CallsLlmAfterRegexPrepass()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("The contract between [ORGANISATION] and the Buyer shall commence.");
 
         var text = "The contract between Accenture (UK) Limited and the Buyer shall commence.";
@@ -244,7 +244,7 @@ public class ChunkRedactorTests
         // The prompt sent to the LLM should already have regex-redacted patterns
         string capturedPrompt = "";
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 capturedPrompt = ci.ArgAt<string>(0);
@@ -265,7 +265,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_HandlesCompanyNames()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("[ORGANISATION] shall provide the services.");
 
         var text = "Accenture (UK) Limited shall provide the services.";
@@ -279,7 +279,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_HandlesGovDepartments()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("The [ORGANISATION], as the contracting authority.");
 
         var text = "The HM Revenue and Customs, as the contracting authority.";
@@ -293,7 +293,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_HandlesPersonNames()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("The programme lead, [PERSON], will oversee delivery.");
 
         var text = "The programme lead, Mr John Smith, will oversee delivery.";
@@ -307,7 +307,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_HandlesStreetAddresses()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("with offices at [ADDRESS].");
 
         var text = "with offices at 100 Parliament Street.";
@@ -335,7 +335,7 @@ public class ChunkRedactorTests
     public async Task RedactWithLlm_StripsCodeFence()
     {
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("```\nThe redacted text.\n```");
 
         var text = "Some text to redact.";

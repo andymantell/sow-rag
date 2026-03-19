@@ -18,7 +18,7 @@ public class DefinitionBuilderTests
     public async Task BuildDefinitionAsync_AnalysesThenSynthesises()
     {
         // Every call returns a simple response
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("Analysis or synthesis result.");
 
         var documents = new List<(string FileName, string Text)>
@@ -45,7 +45,7 @@ public class DefinitionBuilderTests
     [Fact]
     public async Task BuildDefinitionAsync_CodeFencesStrippedFromResponses()
     {
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("```markdown\nClean content.\n```");
 
         var documents = new List<(string FileName, string Text)>
@@ -67,7 +67,7 @@ public class DefinitionBuilderTests
     public async Task BuildDefinitionAsync_MultipleDocuments_AllAnalysed()
     {
         var analysisCallCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 analysisCallCount++;

@@ -90,7 +90,7 @@ public class DefinitionBuilder(IChatService chatService, ILogger<DefinitionBuild
             """;
 
         return LlmOutputHelper.StripCodeFence(
-            await chatService.CompleteAsync(prompt, AnalysisMaxTokens, ct));
+            await chatService.CompleteAsync(prompt, AnalysisMaxTokens, ct, think: false));
     }
 
     private async Task<string> SynthesiseSectionAsync(
@@ -118,6 +118,6 @@ public class DefinitionBuilder(IChatService chatService, ILogger<DefinitionBuild
             """;
 
         return LlmOutputHelper.StripCodeFence(
-            await chatService.CompleteAsync(prompt, SynthesisMaxTokens, ct));
+            await chatService.CompleteAsync(prompt, SynthesisMaxTokens, ct, think: false));
     }
 }

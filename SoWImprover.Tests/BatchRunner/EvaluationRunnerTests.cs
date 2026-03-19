@@ -53,12 +53,10 @@ public class EvaluationRunnerTests
             entity = await loadDb.Documents.Include(d => d.Sections).FirstAsync(d => d.Id == docId);
 
         // Stub evaluation service — EvaluationService has primary constructor requiring
-        // (IConfiguration, ILogger<EvaluationService>, GpuMemoryManager)
+        // (IConfiguration, ILogger<EvaluationService>)
         var config = new ConfigurationBuilder().Build();
-        var gpuMemory = Substitute.ForPartsOf<GpuMemoryManager>(
-            config, Substitute.For<ILogger<GpuMemoryManager>>());
         var evaluator = Substitute.ForPartsOf<EvaluationService>(
-            config, Substitute.For<ILogger<EvaluationService>>(), gpuMemory);
+            config, Substitute.For<ILogger<EvaluationService>>());
         var scores = new EvaluationService.SectionScores
         {
             RagQualityScore = 4,

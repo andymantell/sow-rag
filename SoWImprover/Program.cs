@@ -15,7 +15,6 @@ builder.Services.Configure<HostOptions>(o =>
 // ── Singletons ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GoodDefinition>();
 builder.Services.AddSingleton<DocumentLoader>();
-builder.Services.AddHttpClient();
 builder.Services.AddSingleton<FoundryClientFactory>();
 builder.Services.AddSingleton<IChatService, ChatService>();
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();
@@ -23,8 +22,6 @@ builder.Services.AddSingleton<DefinitionBuilder>();
 builder.Services.AddSingleton<SoWImproverService>();
 builder.Services.AddSingleton<EvaluationService>();
 builder.Services.AddSingleton<IEvaluationSummaryService, EvaluationSummaryService>();
-builder.Services.AddSingleton<GpuMemoryManager>();
-
 builder.Services.AddSingleton<CorpusInitialisationService>();
 
 // BackgroundService: generates the definition of good at startup

@@ -14,18 +14,19 @@ See README for architecture overview, prerequisites, and configuration.
 ```
 Services/
   DefinitionGeneratorService.cs  # BackgroundService — startup orchestrator + definition/embedding caching
-  FoundryClientFactory.cs        # Chat + embedding clients (local/cloud)
+  FoundryClientFactory.cs        # Chat + embedding clients (Ollama local / Azure cloud)
   EmbeddingService.cs            # Wraps EmbeddingClient; sequential calls only (no client cache)
   EmbeddingRetriever.cs          # Cosine similarity retrieval + section matching
   DefinitionBuilder.cs           # 2-pass LLM: per-doc analysis → per-section synthesis
   SoWImproverService.cs          # Per-section RAG improvement pipeline
   DocumentLoader.cs              # Python subprocess PDF extraction + chunking
+  PythonLocator.cs               # Shared Python executable discovery (cached, thread-safe)
   LlmOutputHelper.cs             # Shared: StripCodeFence for cleaning LLM output
   PdfExportService.cs            # QuestPDF-based PDF generation (markdown tables → native tables)
 Data/
   SoWDbContext.cs                # EF Core DbContext (SQLite); registered via AddDbContextFactory
 Models/
-  GoodDefinition.cs              # Singleton: sections, EmbeddingRetriever, volatile IsReady,
+  GoodDefinition.cs              # Singleton: sections, EmbeddingRetriever, Volatile.Read/Write for IsReady,
                                  # OnChanged event (fired by SetProgress + SetReady)
   DocumentEntity.cs              # Persisted document (Id, FileName, OriginalText, UploadedAt)
   SectionEntity.cs               # Persisted section (per-document, includes Suppressed flag)
@@ -49,20 +50,19 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 ## Critical Don'ts
 
-- **Never use `FoundryLocalManager.StartWebServiceAsync()`** — it starts an in-process Foundry service that cannot find models downloaded by the CLI. Always connect via `foundry service status` subprocess.
 - **Never send multiple texts in one `GenerateEmbeddingsAsync` call to Ollama** — Ollama concatenates them and exceeds context limits. `EmbedBatchAsync` loops sequentially.
 - **`OpenAIClientOptions.Endpoint` must include `/v1`** — the SDK appends `chat/completions` (not `/v1/chat/completions`), so the endpoint must be `http://host:PORT/v1`.
 - **Never inject `SoWDbContext` directly in Blazor components** — use `IDbContextFactory<SoWDbContext>` and create short-lived contexts. Scoped DbContext leaks memory over Blazor Server circuit lifetime.
 
 ## Key Implementation Notes
 
+**Single model architecture:** Both SoW improvement and Ragas evaluation use the same Ollama model (`Ollama:ChatModelName`, default `qwen3.5:27b`). No GPU memory swapping needed. Embeddings use a separate model (`Ollama:EmbeddingModelName`, default `nomic-embed-text`).
+
 **Database:** SQLite via EF Core + `AddDbContextFactory`. All Blazor components create short-lived `DbContext` instances via `IDbContextFactory<SoWDbContext>`. `Results.razor` uses `db.Attach(entity).Property(...).IsModified = true` for detached entity updates. `EnsureCreated()` at startup (PoC only — use migrations in production).
 
-**FoundryClientFactory threading:** Three semaphores — `_lock` (chat), `_embeddingLock` (embedding), `_rootLock` (Foundry service URL). Service URL cached in `_cachedServiceRoot` so `foundry service status` subprocess runs once.
+**FoundryClientFactory:** Two semaphores — `_lock` (chat), `_embeddingLock` (embedding). In local mode, connects to Ollama's OpenAI-compatible API. In cloud mode, connects to Azure AI Foundry via `AzureOpenAIClient`. No Foundry Local CLI dependency.
 
-**Model ID resolution (chat only):** Config alias (e.g. `phi-4`) resolved to actual loaded model ID (e.g. `Phi-4-trtrtx-gpu:1`) by querying `/v1/models`. Ollama embedding model name is passed directly — no resolution needed.
-
-**Embedding cache:** `{corpus}/embeddings-cache.json`. Valid when SHA256 fingerprint of `{filename}|{size}` for all PDFs and model name both match. Cache entries use `GlobalIndex` (not per-document `ChunkIndex`) for correct ordering across multiple documents.
+**Embedding cache:** `{corpus}/embeddings-cache.json`. Valid when SHA256 fingerprint of `{filename}|{size}|{lastWriteTimeUtc}` for all PDFs and model name both match. Cache entries use `GlobalIndex` (not per-document `ChunkIndex`) for correct ordering across multiple documents.
 
 **Definition cache:** `{corpus}/definition-cache.json`. Valid when corpus fingerprint and chat model name both match. Avoids re-running multi-document LLM analysis on restart.
 
@@ -72,7 +72,7 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 **Canonical sections:** Single source of truth in `DefinitionBuilder.CanonicalSections` (15 sections). `CorpusInitialisationService` delegates to `DefinitionBuilder`.
 
-**GoodDefinition threading:** `IsReady` is `volatile bool` — acts as release fence. `Retriever` and `Sections` are safe to read after `IsReady == true`.
+**GoodDefinition threading:** `IsReady` uses `Volatile.Read`/`Volatile.Write` for portable memory fences (safe on both x86 and ARM). `Retriever` and `Sections` are safe to read after `IsReady == true`.
 
 **Per-section LLM prompts:** Use `$$"""..."""` raw strings (double-dollar) to allow literal `{` in JSON examples alongside `{{interpolations}}`.
 
@@ -82,23 +82,16 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 **Version history:** Append-only `SectionVersionEntity` table. Restoring old versions creates a new version (never overwrites). `SectionEntity.ImprovedContent` always reflects the latest version. Version data loaded via `Include(s => s.Versions)` in Results.razor. `SectionResult.ImprovedContent` is `{ get; set; }` (mutable) so ResultsPanel can update it after edits.
 
-**`RuntimeIdentifier = win-x64`** set in `.csproj` — app targets Windows only (Foundry Local CLI is Windows-only). `Microsoft.AI.Foundry.Local` and `UglyToad.PdfPig` NuGets have been removed (unused).
+**`RuntimeIdentifier = win-x64`** set in `.csproj` — app targets Windows only. `Microsoft.AI.Foundry.Local` and `UglyToad.PdfPig` NuGets have been removed (unused).
 
 **`<base href="/">`** in `App.razor` is required — without it, nested routes like `/results/{guid}` break CSS/JS/Blazor circuit URL resolution.
 
 ## Current State
-App is working end-to-end with SQLite persistence, PDF export, and section suppression. Three rounds of code review applied. Key fixes include:
-- XSS: Markdig `.DisableHtml()` on all markdown pipelines
-- Accessibility: `aria-live`, `aria-labelledby`, `aria-hidden` on relevant elements
-- Security: server-side file type validation, exception messages not exposed to UI
-- Blazor: `NavigationException` re-thrown, Results page uses `prerender: false`
-- Architecture: polling replaced with `GoodDefinition.OnChanged` event subscription; `IDbContextFactory` for proper DbContext lifetime
-- Correctness: `StripCodeFences` and heading-strip regex fixed (`\A` anchor, no Multiline)
-- Thread-safety: `_suppressed` HashSet snapshot before `Task.Run` in PDF generation
-- `EmbeddingService` no longer caches client (factory handles caching)
-- `DiffService` and `ResultState` deleted (dead code, replaced by persistence)
-- `StripCodeFence` consolidated into shared `LlmOutputHelper` (was duplicated)
-- `FoundryClientFactory` implements `IDisposable` for semaphore cleanup
-- `DocumentLoader`: thread-safe `_pythonExe` (lock) and `ConcurrentDictionary` for extracted texts
-- PDF magic byte validation before Python subprocess
-- Responsive CSS breakpoint for diff panels on narrow screens
+App is working end-to-end with SQLite persistence, PDF export, and section suppression. Four rounds of code review applied. Key architectural changes:
+- Unified model: single Qwen3.5-27B via Ollama for both improvement and evaluation (was phi-4 + qwen2.5:14b)
+- Removed Foundry Local CLI dependency (was needed for phi-4 model resolution)
+- Removed GpuMemoryManager (no longer needed with single model)
+- Extracted shared PythonLocator (was duplicated in DocumentLoader and EvaluationService)
+- EvaluationSummaryService uses IChatService (was creating its own OpenAI client)
+- GoodDefinition uses Volatile.Read/Write (was relying on volatile keyword only)
+- Corpus fingerprint includes file last-modified timestamp

@@ -61,7 +61,7 @@ public class EvaluationSummaryServiceTests
     [Fact]
     public void BuildPrompt_TruncatesLongContent()
     {
-        var longText = new string('A', 3000);
+        var longText = new string('A', 5000);
         var sections = new List<SectionSummaryInput>
         {
             new() { Title = "Long Section", OriginalContent = longText, RagImprovedContent = longText, RagQualityScore = 3 }
@@ -71,7 +71,7 @@ public class EvaluationSummaryServiceTests
 
         Assert.DoesNotContain(longText, prompt);
         Assert.Contains("[truncated]", prompt);
-        Assert.Contains(new string('A', 2000), prompt);
+        Assert.Contains(new string('A', 4000), prompt);
     }
 
     [Fact]

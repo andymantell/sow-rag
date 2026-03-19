@@ -19,47 +19,25 @@ PDF text extraction and evaluation run via Python subprocesses:
 pip install pymupdf4llm pymupdf-layout ragas
 ```
 
-### 3. Ollama (for local embeddings)
+### 3. Ollama (for local LLM inference and embeddings)
 
-Install Ollama from https://ollama.com, then pull the embedding model:
+Install Ollama from https://ollama.com, then pull the required models:
 
 ```bash
+ollama pull qwen3.5:27b
 ollama pull nomic-embed-text
 ```
 
-Ollama must be running at `http://localhost:11434` before starting.
+Ollama must be running at `http://localhost:11434` before starting. A single **Qwen3.5-27B** model handles both SoW improvement and Ragas evaluation; **nomic-embed-text** provides embeddings.
 
-### 4. Microsoft Foundry Local (for local LLM inference)
+#### VRAM requirements
 
-Install the Foundry Local CLI:
-
-```powershell
-winget install Microsoft.FoundryLocal
-```
-
-Then download a model. The app defaults to **phi-4**:
-
-```bash
-foundry model download phi-4
-```
-
-#### Model recommendation for RTX 5090
-
-The RTX 5090 has 32 GB of VRAM:
-
-| Model | VRAM (Q4) | Notes |
+| Model | VRAM (Q4) | Role |
 |---|---|---|
-| **phi-4** (default) | ~8 GB | Fast, excellent reasoning, comfortable fit |
-| **mistral-small-3.1-24b** | ~14 GB | Good quality/speed balance |
-| **llama3.3-70b-instruct** | ~40 GB | Exceeds VRAM solo |
+| **qwen3.5:27b** | ~17 GB | Chat (improvement + evaluation) |
+| **nomic-embed-text** | ~0.3 GB | Embeddings |
 
-**Recommendation:** Start with `phi-4`. If you need stronger reasoning, try `mistral-small-3.1-24b`:
-
-```bash
-foundry model download mistral-small-3.1-24b
-```
-
-Then update `appsettings.json`: `"LocalModelName": "mistral-small-3.1-24b"`
+Both models fit comfortably on a 32 GB GPU (e.g. RTX 5090) with headroom for context.
 
 ---
 
@@ -81,7 +59,6 @@ Place the SoW PDFs you want to evaluate in a `test-sows/` folder (or any folder 
 {
   "Foundry": {
     "UseLocal": true,
-    "LocalModelName": "phi-4",
     "CloudEndpoint": "",
     "CloudApiKey": "",
     "CloudModelName": "",
@@ -89,6 +66,7 @@ Place the SoW PDFs you want to evaluate in a `test-sows/` folder (or any folder 
   },
   "Ollama": {
     "Endpoint": "http://localhost:11434/v1",
+    "ChatModelName": "qwen3.5:27b",
     "EmbeddingModelName": "nomic-embed-text"
   },
   "Docs": {
@@ -137,7 +115,7 @@ claude /experiment-report
 
 Reads the exported results and corpus documents, then writes a technical analysis report comparing RAG vs baseline performance. Saved to `reports/experiment-report-YYYY-MM-DD.md`.
 
-> **Startup time:** On first run the system embeds all corpus chunks via Ollama (cached to `sample-sows/embeddings-cache.json`) and builds the definition of good via LLM (cached to `sample-sows/definition-cache.json`). With phi-4 and 4 documents this takes 2-5 minutes. Subsequent runs load from cache in seconds.
+> **Startup time:** On first run the system embeds all corpus chunks via Ollama (cached to `sample-sows/embeddings-cache.json`) and builds the definition of good via LLM (cached to `sample-sows/definition-cache.json`). With 4 documents this takes 2-5 minutes. Subsequent runs load from cache in seconds.
 
 ### Clearing caches
 
@@ -261,8 +239,8 @@ export Foundry__CloudApiKey="your-key"
 - **PDF extraction:** Python subprocess using `pymupdf4llm` — produces clean markdown from PDFs
 - **PDF export:** QuestPDF (Community license) — server-side PDF generation with markdown table rendering
 - **Persistence:** SQLite via EF Core `IDbContextFactory`
+- **LLM inference:** Qwen3.5-27B via Ollama (local) or Azure AI Foundry (cloud); single model handles both improvement and evaluation
 - **Embeddings:** nomic-embed-text via Ollama (local) or Azure OpenAI (cloud) — cached to disk on first run
 - **Retrieval:** Semantic similarity (cosine) over nomic-embed-text vectors; top-k chunks per section
 - **Section matching:** Uploaded section titles matched to 15 canonical SoW sections by embedding similarity
-- **LLM inference:** Microsoft Foundry Local (local) or Azure AI Foundry (cloud); one call per section sequentially
 - **Definition of good:** Generated once from the corpus (cached to disk); covers deliverables, milestones/acceptance criteria, payment terms, IP ownership, scope boundaries, risk/change control

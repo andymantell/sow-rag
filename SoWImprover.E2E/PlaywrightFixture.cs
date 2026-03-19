@@ -101,7 +101,7 @@ public class PlaywrightFixture : IAsyncLifetime
     {
         // Stub IChatService with context-aware responses
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 var prompt = ci.ArgAt<string>(0);
@@ -152,7 +152,6 @@ public class PlaywrightFixture : IAsyncLifetime
         services.AddSingleton<FoundryClientFactory>();
         services.AddSingleton<DefinitionBuilder>();
         services.AddSingleton<SoWImproverService>();
-        services.AddSingleton<GpuMemoryManager>();
         services.AddSingleton<EvaluationService>();
 
         // Stub IEvaluationSummaryService (Results.razor injects it for summary generation)

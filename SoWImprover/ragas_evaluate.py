@@ -82,6 +82,12 @@ def create_llm(endpoint, model_id):
         if kwargs.get("max_tokens") is None or kwargs["max_tokens"] < _min_max_tokens:
             kwargs["max_tokens"] = _min_max_tokens
 
+        # Disable thinking/reasoning for evaluation calls — scoring is mechanical
+        # and doesn't benefit from chain-of-thought. Ollama maps this to think=false.
+        extra_body = kwargs.get("extra_body", {}) or {}
+        extra_body["reasoning_effort"] = "none"
+        kwargs["extra_body"] = extra_body
+
         # Log the request messages (last message only, truncated)
         messages = kwargs.get("messages", args[0] if args else [])
         if messages:

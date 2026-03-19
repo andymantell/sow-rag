@@ -18,7 +18,7 @@ public class DefinitionPipelineTests
     {
         // Arrange
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("Stubbed LLM analysis/synthesis content.");
 
         var builder = new DefinitionBuilder(chat, NullLogger<DefinitionBuilder>.Instance);
@@ -85,7 +85,7 @@ public class DefinitionPipelineTests
         // Arrange — set up a full pipeline with stubbed chat + embeddings
         var callCount = 0;
         var chat = Substitute.For<IChatService>();
-        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;

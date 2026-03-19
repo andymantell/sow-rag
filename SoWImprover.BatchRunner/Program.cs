@@ -61,7 +61,6 @@ services.AddLogging(b => b.AddConsole()
     .SetMinimumLevel(LogLevel.Warning)
     .AddFilter("SoWImprover", LogLevel.Information));
 services.AddSingleton<GoodDefinition>();
-services.AddHttpClient();
 services.AddSingleton<DocumentLoader>();
 services.AddSingleton<FoundryClientFactory>();
 services.AddSingleton<IChatService, ChatService>();
@@ -71,7 +70,6 @@ services.AddSingleton<CorpusInitialisationService>();
 services.AddSingleton<SoWImproverService>();
 services.AddSingleton<EvaluationService>();
 services.AddSingleton<IEvaluationSummaryService, EvaluationSummaryService>();
-services.AddSingleton<GpuMemoryManager>();
 services.AddDbContextFactory<SoWDbContext>(opts =>
     opts.UseSqlite($"Data Source={Path.Combine(mainAppDir, "sow-improver.db")}"));
 
@@ -87,7 +85,7 @@ var corpusInit = sp.GetRequiredService<CorpusInitialisationService>();
 log.Log("=== SoW Improver Batch Runner ===");
 log.Log($"Test folder: {testFolder} ({pdfs.Length} PDFs found)");
 log.Log($"Corpus:      {resolvedCorpusFolder}");
-log.Log($"Chat model:  {config["Foundry:LocalModelName"]} | Embedding model: {config["Ollama:EmbeddingModelName"]}");
+log.Log($"Chat model:  {config["Ollama:ChatModelName"]} | Embedding model: {config["Ollama:EmbeddingModelName"]}");
 log.Log("");
 
 // Phase 1: Corpus initialisation
@@ -115,7 +113,6 @@ var evalRunner = new EvaluationRunner(
     sp.GetRequiredService<IEvaluationSummaryService>(),
     dbFactory,
     log);
-var gpuMemory = sp.GetRequiredService<GpuMemoryManager>();
 var allResults = new List<(DocumentEntity Entity, ImprovementResult Result)>();
 
 for (var i = 0; i < pdfs.Length; i++)
@@ -125,7 +122,6 @@ for (var i = 0; i < pdfs.Length; i++)
 
     try
     {
-        await gpuMemory.PrepareForImprovementAsync();
         var (entity, result) = await pipeline.ProcessDocumentAsync(pdf, definition, CancellationToken.None);
         allResults.Add((entity, result));
 
@@ -155,7 +151,7 @@ var json = ExperimentExporter.BuildJson(
     corpusFolder: resolvedCorpusFolder,
     corpusDocuments: corpusDocs!,
     totalChunks: definition.ChunkCount,
-    chatModel: config["Foundry:LocalModelName"] ?? "unknown",
+    chatModel: config["Ollama:ChatModelName"] ?? "unknown",
     embeddingModel: config["Ollama:EmbeddingModelName"] ?? "unknown");
 
 var exportPath = Path.Combine(Directory.GetCurrentDirectory(), "experiment-results.json");

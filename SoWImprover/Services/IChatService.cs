@@ -7,5 +7,8 @@ namespace SoWImprover.Services;
 public interface IChatService
 {
     /// <summary>Sends a single user-message prompt and returns the raw text response.</summary>
-    Task<string> CompleteAsync(string prompt, int maxTokens, CancellationToken ct = default);
+    /// <param name="think">Whether to enable model reasoning. Use true for tasks
+    /// requiring judgement (improvement, definition building), false for mechanical
+    /// tasks (matching, redaction, explanation).</param>
+    Task<string> CompleteAsync(string prompt, int maxTokens, CancellationToken ct = default, bool think = false);
 }

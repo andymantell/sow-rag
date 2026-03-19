@@ -8,8 +8,7 @@ namespace SoWImprover.Services;
 
 public class EvaluationService(
     IConfiguration configuration,
-    ILogger<EvaluationService> logger,
-    GpuMemoryManager gpuMemory)
+    ILogger<EvaluationService> logger)
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -73,17 +72,13 @@ public class EvaluationService(
         List<SectionInput> sections,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var endpoint = configuration["Evaluation:Endpoint"]
-            ?? throw new InvalidOperationException("Evaluation:Endpoint not configured in appsettings.json");
-        var modelId = configuration["Evaluation:ModelName"]
-            ?? throw new InvalidOperationException("Evaluation:ModelName not configured in appsettings.json");
-        var embeddingModelId = configuration["Evaluation:EmbeddingModelName"]
-            ?? configuration["Ollama:EmbeddingModelName"];
+        var endpoint = configuration["Ollama:Endpoint"]
+            ?? "http://localhost:11434/v1";
+        var modelId = configuration["Ollama:ChatModelName"]
+            ?? throw new InvalidOperationException("Ollama:ChatModelName not configured in appsettings.json");
+        var embeddingModelId = configuration["Ollama:EmbeddingModelName"]
+            ?? "nomic-embed-text";
         var inputJson = BuildInputJson(endpoint, modelId, sections, embeddingModelId);
-
-        // Free GPU VRAM by unloading models that are no longer needed before
-        // loading the (potentially larger) evaluation model.
-        await gpuMemory.PrepareForEvaluationAsync(ct);
 
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "ragas_evaluate.py");
         if (!File.Exists(scriptPath))

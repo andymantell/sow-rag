@@ -19,7 +19,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_UnrecognisedSections_PassedThrough()
     {
         // Matching response: all sections map to null (unrecognised)
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("{\"Introduction\": null}");
 
         var definition = CreateReadyDefinition();
@@ -36,7 +36,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_MatchedSection_GetsImprovedAndExplained()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -64,7 +64,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_MatchedSection_GeneratesBaselineWithoutRag()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -89,7 +89,7 @@ public class SoWImproverServiceTests
     [Fact]
     public async Task ImproveAsync_MalformedMatchingJson_TreatsAllAsUnrecognised()
     {
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns("not valid json at all");
 
         var definition = CreateReadyDefinition();
@@ -105,7 +105,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_CodeFenceInResponse_Stripped()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -129,7 +129,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_LeadingHeadingInImprovement_Stripped()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -153,7 +153,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_MultipleSections_MatchedAndUnrecognised()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -191,7 +191,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_ReportsProgress()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -219,7 +219,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_PopulatesChunksUsed()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
@@ -245,7 +245,7 @@ public class SoWImproverServiceTests
     public async Task ImproveAsync_LongChunkText_TruncatesSnippet()
     {
         var callCount = 0;
-        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ci =>
             {
                 callCount++;
