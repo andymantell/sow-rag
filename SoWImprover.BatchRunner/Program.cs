@@ -7,9 +7,20 @@ using SoWImprover.Data;
 using SoWImprover.Models;
 using SoWImprover.Services;
 
+if (args is ["--clean"])
+{
+    var dbPath = Path.Combine(FindMainAppDir(), "sow-improver.db");
+    if (File.Exists(dbPath))
+    {
+        File.Delete(dbPath);
+        Console.WriteLine($"Deleted {dbPath}");
+    }
+    return 0;
+}
+
 if (args.Length < 1)
 {
-    Console.Error.WriteLine("Usage: SoWImprover.BatchRunner <test-folder-path>");
+    Console.Error.WriteLine("Usage: SoWImprover.BatchRunner <test-folder-path> | --clean");
     return 1;
 }
 
