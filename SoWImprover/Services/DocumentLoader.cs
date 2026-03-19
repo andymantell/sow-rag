@@ -7,8 +7,6 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
 {
     private readonly int _chunkSize = config.GetValue<int>("Docs:ChunkSize", 500);
     private readonly int _chunkOverlap = config.GetValue<int>("Docs:ChunkOverlap", 50);
-    private readonly object _pythonLock = new();
-    private string? _pythonExe;
 
     // Cache of raw extracted texts keyed by filename, populated during LoadFolder.
     // Allows DefinitionGeneratorService to reuse the text without a second subprocess call.
@@ -105,8 +103,9 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
             throw new InvalidOperationException(
                 $"PDF extraction timed out after {TimeoutMs / 1000} seconds. The PDF may be corrupt or very large.");
         }
-        // Ensure all async output read callbacks have completed (bounded to the same timeout).
-        process.WaitForExit(TimeoutMs);
+        // Ensure all async output read callbacks have completed.
+        // The parameterless overload is required to flush BeginOutputReadLine/BeginErrorReadLine buffers.
+        process.WaitForExit();
 
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
@@ -115,43 +114,7 @@ public class DocumentLoader(IConfiguration config, ILogger<DocumentLoader> logge
         return output.ToString();
     }
 
-    private string GetPythonExe()
-    {
-        if (_pythonExe is not null) return _pythonExe;
-        lock (_pythonLock)
-        {
-            return _pythonExe ??= FindPython();
-        }
-    }
-
-    private string FindPython()
-    {
-        // py.exe is the Windows Python Launcher and is most reliable on Windows
-        foreach (var candidate in new[] { "py", "python3", "python" })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = candidate,
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var p = Process.Start(psi);
-                p?.WaitForExit(3000);
-                if (p?.ExitCode == 0) return candidate;
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Python candidate '{Candidate}' not usable", candidate);
-            }
-        }
-        throw new InvalidOperationException(
-            "Python not found. Install Python 3 and run: pip install pymupdf4llm");
-    }
+    private static string GetPythonExe() => PythonLocator.Find();
 
     // ── Chunking ──────────────────────────────────────────────────────────────
 

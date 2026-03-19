@@ -70,7 +70,7 @@ sample-sows/definition-cache.json  # Auto-generated; delete to force rebuild
 
 **Chunking:** `text.Split([' ', '\n', '\r', '\t'], ...)` — must split on all whitespace. Splitting on space only causes markdown table rows to become single oversized tokens that exceed Ollama's context limit. `EmbedAsync` also truncates at 8000 chars as a safety net.
 
-**Canonical sections:** Defined in both `DefinitionBuilder.CanonicalSections` and `DefinitionGeneratorService.CanonicalSections` — must be kept in sync (15 sections).
+**Canonical sections:** Single source of truth in `DefinitionBuilder.CanonicalSections` (15 sections). `CorpusInitialisationService` delegates to `DefinitionBuilder`.
 
 **GoodDefinition threading:** `IsReady` is `volatile bool` — acts as release fence. `Retriever` and `Sections` are safe to read after `IsReady == true`.
 

@@ -56,9 +56,12 @@ public class AppHostTests : IClassFixture<AppHostTests.SoWWebApplicationFactory>
                 // Replace FoundryClientFactory with a stub (chat/embedding services depend on it)
                 RemoveService<FoundryClientFactory>(services);
                 var stubConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+                var stubHttpFactory = Substitute.For<System.Net.Http.IHttpClientFactory>();
+                stubHttpFactory.CreateClient(Arg.Any<string>()).Returns(new System.Net.Http.HttpClient());
                 services.AddSingleton(new FoundryClientFactory(
                     stubConfig,
-                    Microsoft.Extensions.Logging.Abstractions.NullLogger<FoundryClientFactory>.Instance));
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<FoundryClientFactory>.Instance,
+                    stubHttpFactory));
 
                 // Stub IChatService
                 var chat = Substitute.For<IChatService>();

@@ -127,7 +127,7 @@
         var navigating = false;
         try
         {
-            using (var fs = File.Create(tempPath))
+            await using (var fs = File.Create(tempPath))
             await using (var stream = _selectedFile!.OpenReadStream(MaxUploadBytes))
                 await stream.CopyToAsync(fs);
 

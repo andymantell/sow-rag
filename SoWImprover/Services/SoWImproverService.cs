@@ -81,7 +81,10 @@ public class SoWImproverService(
             var baseline = await ImproveSectionAsync(section, [], definedSection.Content, ct);
 
             // RAG-enhanced: retrieve relevant chunks and improve
-            var scored = await definition.Retriever!.RetrieveAsync(section.Body, ct);
+            if (definition.Retriever is null)
+                throw new InvalidOperationException(
+                    "Definition retriever is not available. Ensure the corpus has finished loading before improving documents.");
+            var scored = await definition.Retriever.RetrieveAsync(section.Body, ct);
             var chunks = scored.Select(s => s.Chunk).ToList();
             allChunks.AddRange(chunks);
 
@@ -329,8 +332,9 @@ public class SoWImproverService(
                 sb.AppendLine();
             }
 
-            File.WriteAllText("improvement-log.md", sb.ToString());
-            logger.LogInformation("Improvement log written to improvement-log.md");
+            var logPath = Path.Combine(AppContext.BaseDirectory, "improvement-log.md");
+            File.WriteAllText(logPath, sb.ToString());
+            logger.LogInformation("Improvement log written to {Path}", logPath);
         }
         catch (Exception ex)
         {

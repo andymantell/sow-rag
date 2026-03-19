@@ -110,7 +110,7 @@ public class EvaluationService(
         process.StandardInput.Close();
 
         // Log stderr in background (progress messages + warnings)
-        _ = Task.Run(async () =>
+        var stderrTask = Task.Run(async () =>
         {
             try
             {
@@ -149,6 +149,8 @@ public class EvaluationService(
             try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
             throw new InvalidOperationException("Ragas evaluation timed out — no output received for 30 minutes.");
         }
+
+        await stderrTask;
 
         if (process.ExitCode != 0)
             logger.LogWarning("Ragas process exited with code {Code}", process.ExitCode);
@@ -231,27 +233,5 @@ public class EvaluationService(
             ? ns.GetDouble() : null,
     };
 
-    private static string FindPython()
-    {
-        foreach (var candidate in new[] { "py", "python3", "python" })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = candidate,
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var p = Process.Start(psi);
-                p?.WaitForExit(3000);
-                if (p?.ExitCode == 0) return candidate;
-            }
-            catch { }
-        }
-        throw new InvalidOperationException("Python not found.");
-    }
+    private static string FindPython() => PythonLocator.Find();
 }

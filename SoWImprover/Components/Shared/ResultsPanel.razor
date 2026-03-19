@@ -360,7 +360,7 @@
     [Parameter] public bool SummaryLoading { get; set; }
     [Parameter] public int SectionsEvaluated { get; set; }
     [Parameter] public int TotalEvaluatingSections { get; set; }
-    [Parameter] public EventCallback OnSuppressedChanged { get; set; }
+    [Parameter] public EventCallback<int> OnSuppressedChanged { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, string NewMarkdown)> OnSectionEdited { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionRestored { get; set; }
     [Parameter] public EventCallback<(int SectionIndex, int VersionNumber)> OnVersionPreviewRequested { get; set; }
@@ -557,9 +557,7 @@
 
     private async Task ToggleSection(int index)
     {
-        if (!SuppressedSections.Remove(index))
-            SuppressedSections.Add(index);
-        await OnSuppressedChanged.InvokeAsync();
+        await OnSuppressedChanged.InvokeAsync(index);
     }
 
     private async Task OnVersionSelectChanged(int sectionIndex, int versionNumber, int currentVersion)

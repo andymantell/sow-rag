@@ -308,7 +308,11 @@ public class CorpusInitialisationService(
         var entries = Directory
             .GetFiles(folder, "*.pdf")
             .OrderBy(f => f)
-            .Select(f => $"{Path.GetFileName(f)}|{new FileInfo(f).Length}");
+            .Select(f =>
+            {
+                var info = new FileInfo(f);
+                return $"{info.Name}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            });
 
         var combined = string.Join("\n", entries);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(combined));

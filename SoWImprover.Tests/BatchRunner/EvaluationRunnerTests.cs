@@ -62,7 +62,8 @@ public class EvaluationRunnerTests
         var scores = new EvaluationService.SectionScores
         {
             RagQualityScore = 4,
-            BaselineQualityScore = 3
+            BaselineQualityScore = 3,
+            NoiseSensitivityScore = 0.1
         };
         evaluator.EvaluateStreamingAsync(
                 Arg.Any<List<EvaluationService.SectionInput>>(), Arg.Any<CancellationToken>())

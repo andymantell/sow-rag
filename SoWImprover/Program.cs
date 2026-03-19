@@ -15,6 +15,7 @@ builder.Services.Configure<HostOptions>(o =>
 // ── Singletons ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GoodDefinition>();
 builder.Services.AddSingleton<DocumentLoader>();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<FoundryClientFactory>();
 builder.Services.AddSingleton<IChatService, ChatService>();
 builder.Services.AddSingleton<IEmbeddingService, EmbeddingService>();

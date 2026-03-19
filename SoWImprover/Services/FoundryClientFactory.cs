@@ -14,10 +14,11 @@ namespace SoWImprover.Services;
 /// Resolves the local Foundry Local CLI service endpoint or an Azure AI Foundry cloud endpoint
 /// and returns a configured <see cref="ChatClient"/>.
 /// </summary>
-public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFactory> logger) : IDisposable
+public class FoundryClientFactory(
+    IConfiguration config,
+    ILogger<FoundryClientFactory> logger,
+    IHttpClientFactory httpClientFactory) : IDisposable
 {
-    // Long-lived HttpClient instance — avoids socket exhaustion from per-call instantiation.
-    private static readonly HttpClient _http = new();
 
     private ChatClient? _cached;
     private EmbeddingClient? _cachedEmbedding;
@@ -208,7 +209,8 @@ public class FoundryClientFactory(IConfiguration config, ILogger<FoundryClientFa
         string json;
         try
         {
-            json = await _http.GetStringAsync($"{baseUrl}/v1/models", ct);
+            using var http = httpClientFactory.CreateClient();
+            json = await http.GetStringAsync($"{baseUrl}/v1/models", ct);
         }
         catch (Exception ex)
         {

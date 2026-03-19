@@ -16,11 +16,13 @@ public class EvaluationRunner(
         IReadOnlyList<SectionResult> sectionResults,
         CancellationToken ct)
     {
-        // Build evaluation inputs — only recognised sections with baseline content
+        // Build evaluation inputs — only recognised sections with baseline content.
+        // Sort by SectionIndex to ensure alignment with sectionResults (EF Core doesn't guarantee order).
+        var sortedSections = entity.Sections.OrderBy(s => s.SectionIndex).ToList();
         var evaluable = new List<(int EntitySectionIndex, SectionResult Result)>();
-        for (var i = 0; i < entity.Sections.Count; i++)
+        for (var i = 0; i < sortedSections.Count; i++)
         {
-            var sec = entity.Sections[i];
+            var sec = sortedSections[i];
             var result = sectionResults[i];
             if (!sec.Unrecognised && sec.BaselineContent is not null)
                 evaluable.Add((i, result));
@@ -47,7 +49,7 @@ public class EvaluationRunner(
         await foreach (var (streamIdx, scores) in evaluator.EvaluateStreamingAsync(inputs, ct))
         {
             var (entityIdx, result) = evaluable[streamIdx];
-            var sec = entity.Sections[entityIdx];
+            var sec = sortedSections[entityIdx];
             metricsReceived++;
 
             // Merge scores into section result (in-memory, for export)
@@ -65,13 +67,11 @@ public class EvaluationRunner(
             result.ContextRecallScore = scores.ContextRecallScore ?? result.ContextRecallScore;
             result.NoiseSensitivityScore = scores.NoiseSensitivityScore ?? result.NoiseSensitivityScore;
 
-            // Persist scores to DB
-            await PersistScoresAsync(sec, scores, ct);
-
-            // Check if this section now has all metrics — log once when complete
+            // Check if this section now has all metrics — log and persist once when complete
             if (!completedSections.Contains(streamIdx) && result.NoiseSensitivityScore.HasValue)
             {
                 completedSections.Add(streamIdx);
+                await PersistScoresAsync(sec, result, ct);
                 var sectionName = sec.MatchedSection ?? sec.OriginalTitle;
                 log.Log($"  [{completedSections.Count}/{evaluable.Count}] {sectionName}", indent: 1);
                 log.Log($"    Original: {result.OriginalQualityScore} | Baseline: {result.BaselineQualityScore} | RAG: {result.RagQualityScore}", indent: 2);
@@ -95,7 +95,7 @@ public class EvaluationRunner(
             .Where(e => e.Result.RagQualityScore.HasValue)
             .Select(e =>
             {
-                var sec = entity.Sections[e.EntitySectionIndex];
+                var sec = sortedSections[e.EntitySectionIndex];
                 var r = e.Result;
                 return new SectionSummaryInput
                 {
@@ -129,22 +129,22 @@ public class EvaluationRunner(
     }
 
     private async Task PersistScoresAsync(
-        SectionEntity sec, EvaluationService.SectionScores scores, CancellationToken ct)
+        SectionEntity sec, SectionResult result, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         db.Attach(sec);
-        sec.OriginalQualityScore = scores.OriginalQualityScore;
-        sec.BaselineQualityScore = scores.BaselineQualityScore;
-        sec.RagQualityScore = scores.RagQualityScore;
-        sec.BaselineFaithfulnessScore = scores.BaselineFaithfulnessScore;
-        sec.RagFaithfulnessScore = scores.RagFaithfulnessScore;
-        sec.BaselineFactualCorrectnessScore = scores.BaselineFactualCorrectnessScore;
-        sec.RagFactualCorrectnessScore = scores.RagFactualCorrectnessScore;
-        sec.BaselineResponseRelevancyScore = scores.BaselineResponseRelevancyScore;
-        sec.RagResponseRelevancyScore = scores.RagResponseRelevancyScore;
-        sec.ContextPrecisionScore = scores.ContextPrecisionScore;
-        sec.ContextRecallScore = scores.ContextRecallScore;
-        sec.NoiseSensitivityScore = scores.NoiseSensitivityScore;
+        sec.OriginalQualityScore = result.OriginalQualityScore;
+        sec.BaselineQualityScore = result.BaselineQualityScore;
+        sec.RagQualityScore = result.RagQualityScore;
+        sec.BaselineFaithfulnessScore = result.BaselineFaithfulnessScore;
+        sec.RagFaithfulnessScore = result.RagFaithfulnessScore;
+        sec.BaselineFactualCorrectnessScore = result.BaselineFactualCorrectnessScore;
+        sec.RagFactualCorrectnessScore = result.RagFactualCorrectnessScore;
+        sec.BaselineResponseRelevancyScore = result.BaselineResponseRelevancyScore;
+        sec.RagResponseRelevancyScore = result.RagResponseRelevancyScore;
+        sec.ContextPrecisionScore = result.ContextPrecisionScore;
+        sec.ContextRecallScore = result.ContextRecallScore;
+        sec.NoiseSensitivityScore = result.NoiseSensitivityScore;
 
         foreach (var prop in new[]
         {

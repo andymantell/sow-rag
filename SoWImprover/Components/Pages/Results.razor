@@ -30,7 +30,7 @@
                           SuppressedSections="_suppressed"
                           EvaluatingSections="_evaluatingSections"
                           EvaluationAttemptedSections="_evaluationAttempted"
-                          OnSuppressedChanged="SaveSuppressedAsync"
+                          OnSuppressedChanged="ToggleSuppressedAsync"
                           OnSectionEdited="HandleSectionEdited"
                           OnVersionRestored="HandleVersionRestored"
                           OnVersionPreviewRequested="HandleVersionPreviewRequested"
@@ -78,6 +78,8 @@
     private int _sectionsEvaluated;
     private int _totalToEvaluate;
     private bool _summaryStale;
+    private int _summaryRetries;
+    private const int MaxSummaryRetries = 3;
     private CancellationTokenSource? _summaryCts;
     private DocumentEntity? _document;
 
@@ -410,6 +412,7 @@
             if (!string.IsNullOrEmpty(summary))
             {
                 _evaluationSummary = summary;
+                _summaryRetries = 0; // Reset on success
                 await PersistSummaryAsync(summary);
             }
         }
@@ -423,9 +426,12 @@
             _summaryLoading = false;
             await InvokeAsync(StateHasChanged);
 
-            // If another section completed while we were generating, retrigger
-            if (_summaryStale)
+            // If another section completed while we were generating, retrigger (with limit)
+            if (_summaryStale && _summaryRetries < MaxSummaryRetries)
+            {
+                _summaryRetries++;
                 _ = RefreshSummaryAsync();
+            }
         }
     }
 
@@ -436,6 +442,13 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         db.Attach(_document).Property(d => d.EvaluationSummary).IsModified = true;
         await db.SaveChangesAsync();
+    }
+
+    private async Task ToggleSuppressedAsync(int index)
+    {
+        if (!_suppressed.Remove(index))
+            _suppressed.Add(index);
+        await SaveSuppressedAsync();
     }
 
     private async Task SaveSuppressedAsync()
@@ -478,6 +491,11 @@
             var pdfBytes = await Task.Run(() => PdfExportService.Generate(snapshotResult, suppressedSnapshot));
             var base64 = Convert.ToBase64String(pdfBytes);
             await _module.InvokeVoidAsync("downloadFile", "improved-sow.pdf", base64);
+        }
+        catch (JSDisconnectedException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "PDF download failed");
         }
         finally
         {

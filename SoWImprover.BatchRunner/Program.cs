@@ -57,8 +57,11 @@ config["Docs:KnownGoodFolder"] = resolvedCorpusFolder;
 // Build DI container (mirrors main app, minus Blazor and hosted services)
 var services = new ServiceCollection();
 services.AddSingleton<IConfiguration>(config);
-services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+services.AddLogging(b => b.AddConsole()
+    .SetMinimumLevel(LogLevel.Warning)
+    .AddFilter("SoWImprover", LogLevel.Information));
 services.AddSingleton<GoodDefinition>();
+services.AddHttpClient();
 services.AddSingleton<DocumentLoader>();
 services.AddSingleton<FoundryClientFactory>();
 services.AddSingleton<IChatService, ChatService>();

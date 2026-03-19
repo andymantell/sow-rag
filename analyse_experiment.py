@@ -164,6 +164,9 @@ def print_head_to_head(rows: list[dict]):
         ("Response Relevancy", "baseRR", "ragRR"),
     ]
     n = len(rows)
+    if n == 0:
+        print("No sections to compare.\n")
+        return
     print(f"| Metric | RAG > Baseline | RAG = Baseline | RAG < Baseline |")
     print(f"|--------|---------------|----------------|----------------|")
     for label, bk, rk in pairs:

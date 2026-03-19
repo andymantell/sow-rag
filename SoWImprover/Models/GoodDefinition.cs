@@ -13,7 +13,7 @@ public record DefinedSection(string Name, string Content);
 /// </summary>
 public class GoodDefinition
 {
-    private volatile bool _isReady;
+    private bool _isReady;
     private volatile string _progressMessage = "";
 
     /// <summary>
@@ -32,7 +32,7 @@ public class GoodDefinition
     public string ProgressMessage => _progressMessage;
 
     /// <summary>Whether the definition has been fully generated and is safe to read.</summary>
-    public bool IsReady => _isReady;
+    public bool IsReady => Volatile.Read(ref _isReady);
 
     /// <summary>Updates the progress message and notifies subscribers.</summary>
     public void SetProgress(string message)
@@ -65,7 +65,9 @@ public class GoodDefinition
         Retriever = retriever;
         DocumentCount = documentCount;
         ChunkCount = chunkCount;
-        _isReady = true;
+        // Full memory barrier ensures all property writes above are visible to other threads
+        // before _isReady becomes true. Portable across x86 and ARM.
+        Volatile.Write(ref _isReady, true);
         OnChanged?.Invoke();
     }
 }

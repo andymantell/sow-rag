@@ -1,41 +1,16 @@
-using System.ClientModel;
-using OpenAI;
-using OpenAI.Chat;
-
 namespace SoWImprover.Services;
 
 public class EvaluationSummaryService : IEvaluationSummaryService
 {
     private const int MaxContentLength = 2000;
-    private readonly ChatClient _chatClient;
+    private readonly IChatService _chatService;
     private readonly ILogger<EvaluationSummaryService> _logger;
 
-    public EvaluationSummaryService(IConfiguration configuration, ILogger<EvaluationSummaryService> logger)
+    public EvaluationSummaryService(IChatService chatService, ILogger<EvaluationSummaryService> logger)
     {
+        _chatService = chatService;
         _logger = logger;
-
-        var endpoint = configuration["Evaluation:Endpoint"]
-            ?? throw new InvalidOperationException("Evaluation:Endpoint not configured.");
-        var modelName = configuration["Evaluation:ModelName"]
-            ?? throw new InvalidOperationException("Evaluation:ModelName not configured.");
-
-        // CLAUDE.md: OpenAIClientOptions.Endpoint must include /v1 — SDK appends chat/completions
-        var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
-        var client = new OpenAIClient(new ApiKeyCredential("ollama"), options);
-        _chatClient = client.GetChatClient(modelName);
     }
-
-    // Internal constructor for unit testing (inject a mock-friendly delegate instead of ChatClient)
-    internal EvaluationSummaryService(
-        Func<string, int, CancellationToken, Task<string>> completeFunc,
-        ILogger<EvaluationSummaryService> logger)
-    {
-        _logger = logger;
-        _completeFunc = completeFunc;
-        _chatClient = null!; // not used when _completeFunc is set
-    }
-
-    private readonly Func<string, int, CancellationToken, Task<string>>? _completeFunc;
 
     public async Task<string> GenerateSummaryAsync(
         List<SectionSummaryInput> completedSections,
@@ -46,20 +21,7 @@ public class EvaluationSummaryService : IEvaluationSummaryService
 
         try
         {
-            string response;
-            if (_completeFunc is not null)
-            {
-                response = await _completeFunc(prompt, 1024, ct);
-            }
-            else
-            {
-                var opts = new ChatCompletionOptions { MaxOutputTokenCount = 1024 };
-                var completion = await _chatClient.CompleteChatAsync(
-                    [new UserChatMessage(prompt)], opts, cancellationToken: ct);
-                var content = completion.Value.Content;
-                response = content.Count > 0 ? content[0].Text ?? "" : "";
-            }
-
+            var response = await _chatService.CompleteAsync(prompt, 1024, ct);
             return LlmOutputHelper.StripCodeFence(response);
         }
         catch (Exception ex)
