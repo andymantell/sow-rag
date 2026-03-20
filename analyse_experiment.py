@@ -34,7 +34,7 @@ def section_rows(data: dict) -> list[dict]:
         for sec in doc["sections"]:
             if sec["unrecognised"]:
                 continue
-            s = sec["scores"]
+            s = sec.get("scores")
             if s is None:
                 continue
             rows.append({
@@ -236,9 +236,9 @@ def print_qualitative_samples(data: dict, n_samples: int = 4):
     candidates = []
     for doc in data["testDocuments"]:
         for sec in doc["sections"]:
-            if sec["unrecognised"] or sec["scores"] is None:
+            if sec["unrecognised"] or sec.get("scores") is None:
                 continue
-            s = sec["scores"]
+            s = sec.get("scores")
             bq = s.get("baselineQualityScore") or 0
             rq = s.get("ragQualityScore") or 0
             bf = s.get("baselineFaithfulnessScore") or 0
@@ -249,7 +249,7 @@ def print_qualitative_samples(data: dict, n_samples: int = 4):
     candidates.sort(key=lambda x: -x[0])
 
     for _, doc_name, sec in candidates[:n_samples]:
-        s = sec["scores"]
+        s = sec.get("scores")
         print(f"### {doc_name} | {sec['sectionName']}")
         print(f"Canonical: {sec.get('matchedCanonicalSection', 'N/A')}")
         print(f"Quality: orig={fmt(s.get('originalQualityScore'))} "

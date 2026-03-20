@@ -1,14 +1,14 @@
 # Experiment Report: RAG vs Baseline for SoW Improvement
 
 **Date:** 2026-03-20
-**Status:** Internal technical report — single-run results, 5 synthetic test documents
-**Data source:** `experiment-results.json` exported 2026-03-19T15:23:41Z (same data as previous report)
+**Status:** Internal technical report — partial run, 3 real redacted documents, 72 evaluated sections
+**Data source:** Partial `experiment-results.json` recovered from database after cancelled batch run
 
 ---
 
 ## Executive Summary
 
-RAG provides no measurable quality improvement over prompt-only baseline. Mean quality scores are identical (1.60 vs 1.60), with RAG winning and losing quality in exactly 10 of 60 sections each (16%). Retrieval remains critically poor: context precision 0.05, context recall 0.07. The test documents are well-structured synthetic SoWs that lack the messiness and irregularity of real government procurement documents, which inflates baseline performance and understates the potential value of RAG. Four real redacted SoWs are now available in the test folder but have not yet been evaluated.
+With real government SoW documents, the improvement pipeline produces noticeably better results than with synthetic test data — quality scores reach 3 and 4 for the first time, and the quality scale is actually being used. RAG still provides no aggregate quality advantage over baseline (1.81 vs 1.83), but retrieval metrics improved substantially: context recall jumped from 0.07 to 0.28, suggesting the corpus is more relevant to real procurement documents than to the synthetic ones. The fundamental corpus bottleneck remains (4 documents, 27 chunks), but the retrieval signal is stronger with real inputs.
 
 ---
 
@@ -20,11 +20,39 @@ RAG provides no measurable quality improvement over prompt-only baseline. Mean q
 |-----------|----------------------|---------------------|
 | Chat model | qwen3.5:27b | qwen3.5:27b (unchanged) |
 | Evaluation model | qwen3.5:27b | qwen3.5:27b (unchanged) |
-| Test documents | 5 synthetic SoWs | 5 synthetic SoWs (unchanged) |
-| Sections evaluated | 60 | 60 (unchanged) |
+| Test documents | 5 synthetic SoWs | 3 real redacted SoWs (partial run) |
+| Sections evaluated | 60 | 72 |
+| Document type | Clean narrative SoWs | CCS framework order forms + SoW templates |
 | Corpus | 4 redacted HMRC SoWs, 27 chunks | Unchanged |
 
-**This report uses the same experiment data as 2026-03-19.** The quantitative results are identical. The new content is: (1) a test document quality assessment for both the synthetic documents and the newly available real documents, and (2) updated recommendations based on those findings.
+**Direct comparison is limited.** The test documents changed from synthetic to real, and the run is incomplete (3 of 4 documents, with evaluation gaps within each). However, the model, corpus, and pipeline are identical, so differences in retrieval metrics are attributable to the change in test material.
+
+### Key Metric Comparison
+
+| Metric | Previous (synthetic) | Current (real) | Direction |
+|--------|---------------------|---------------|-----------|
+| Quality (baseline mean) | 1.60 | 1.83 | Better |
+| Quality (RAG mean) | 1.60 | 1.81 | Better |
+| Quality gap (baseline − RAG) | 0.00 | +0.02 | Similar |
+| Faithfulness (baseline mean) | 0.99 | 0.92 | Worse |
+| Faithfulness (RAG mean) | 0.96 | 0.94 | Similar |
+| Factual correctness (baseline) | 0.99 | 0.96 | Slightly worse |
+| Factual correctness (RAG) | 0.94 | 0.97 | Better |
+| Context precision | 0.05 | 0.10 | **2x better** |
+| Context recall | 0.07 | 0.28 | **4x better** |
+| RAG quality wins (head-to-head) | 10/60 (16%) | 7/72 (9%) | Worse |
+| RAG quality losses | 10/60 (16%) | 9/72 (12%) | Similar |
+| Max quality score observed | 3 | **4** | Higher ceiling |
+
+### What Moved
+
+1. **Quality scores have a wider range.** The previous run's scores clustered at 1-2 with occasional 3s. This run has multiple 4s (Maximum Liability sections scored 4 in both baseline and RAG) and more 3s. The 1-5 scale is being used more meaningfully, suggesting real documents give the evaluator more to differentiate.
+
+2. **Retrieval actually works sometimes.** Context recall jumped from 0.07 to 0.28 — 4x improvement. Context precision doubled from 0.05 to 0.10. The corpus (all from CCS framework contracts) is genuinely more relevant to these real CCS framework documents than to the synthetic SoWs, which lacked framework boilerplate.
+
+3. **Faithfulness dropped for baseline.** Baseline faithfulness fell from 0.99 to 0.92. Real documents have more complex, ambiguous text (redaction gaps, framework cross-references, legal boilerplate) that's harder for the LLM to faithfully rewrite. Interestingly, RAG faithfulness held steady (0.96 → 0.94), and RAG now has *better* average faithfulness and factual correctness than baseline — a reversal from the synthetic run.
+
+4. **RAG quality win rate dropped.** Only 7/72 (9%) sections see RAG quality exceed baseline, down from 10/60 (16%). But RAG losses also dropped to 9/72 (12%), and ties dominate at 77%. The improvement is more conservative with real documents.
 
 ### Previous Recommendations Addressed
 
@@ -35,276 +63,265 @@ RAG provides no measurable quality improvement over prompt-only baseline. Mean q
 | Run multiple trials | Not done |
 | Add unredacted/lightly-redacted docs | Not done |
 | Test with thinking enabled | Not done |
-| Investigate quality score compression | Not done |
+| Investigate quality score compression | **Partially addressed** — real docs show wider score range |
 | Section-type-specific retrieval | Not done |
-| **Re-run with real test documents** | **In progress** — 4 real SoWs now in `test-sows/`, batch run started but cancelled before completion |
+| **Re-run with real test documents** | **Done (partial)** — 3 of 4 real docs processed |
 
 ---
 
 ## 1. Methodology
 
-Unchanged from the 2026-03-19 report. See that report for full details.
+### Experiment Setup
 
 | Parameter | Value |
 |-----------|-------|
 | Chat model | qwen3.5:27b (local, Ollama, thinking disabled) |
 | Embedding model | nomic-embed-text (local, Ollama) |
 | Corpus documents | 4 PDFs, 27 chunks total |
-| Test documents | 5 synthetic SoW PDFs |
-| Sections evaluated | 60 (of 63 total; 3 unrecognised sections skipped) |
+| Test documents | 3 real redacted SoW PDFs (of 4 available) |
+| Total sections | 257 |
+| Sections with improvement (baseline + RAG) | 182 |
+| Sections with evaluation scores | 72 |
 | Retrieval | Top-5 chunks by cosine similarity per section |
 | Evaluation | Ragas metrics, same local LLM as evaluator |
-| Runs | 1 per document (no repeated trials) |
+| Runs | 1 per document (incomplete — batch cancelled) |
+
+### Completeness
+
+This is a **partial run**. The batch runner was cancelled mid-execution and results were recovered from the SQLite database. Completion status:
+
+| Document | Total Sections | Improved | Evaluated |
+|----------|---------------|----------|-----------|
+| CCZN21A57 (Cabinet Office / NQC) | 70 | 52 | 32 |
+| RM1043 SK6 Lead Architect (MoD) | 47 | 31 | 19 |
+| RM6263 UC Continuity (DWP) | 140 | 99 | 21 |
+| SoW1 Comms (DBT) | — | Not started | Not started |
+
+The 72 evaluated sections are spread across 3 documents. This is more evaluated sections than the previous run (60), but unevenly distributed. Aggregate metrics should be treated as indicative, not definitive.
+
+### Test Documents
+
+1. **CCZN21A57 RM1043.7-DOS5-Schedule-6-Order-Form [REDACTED].pdf** — DOS5 Lot 1 order form. Cabinet Office contracting for Contracts Finder and Find a Tender services from NQC Ltd. 70 sections, 32 evaluated. Includes both the framework order form and an embedded SoW template.
+2. **RM1043CCT1033 - SK6 Lead Architect Final Redacted.pdf** — DOS5 Lot 2 order form. MoD Defence Digital contracting a single Lead Architect role for the Skynet 6 programme from People Source Consulting. 47 sections, 19 evaluated.
+3. **RM6263-Order-Form-UC Continuity of Service-ecm_12644 - v1.0 - Redacted.pdf** — DSP Lot 2 order form. DWP contracting 29 development roles for Universal Credit from Astraeus Consulting. 140 sections, 21 evaluated.
+
+### Corpus Documents
+
+Unchanged from the previous report:
+
+| Document | Supplier | Buyer | Domain |
+|----------|----------|-------|--------|
+| SOW UBS Redacted Good 1.pdf | Accenture (UK) Ltd | HMRC | Unity Programme — HR/Finance |
+| SOW Accenure Redacted Good.pdf | Accenture (UK) Ltd | HMRC | Borders & Trade — Discovery |
+| Redacted Accenture.pdf | Accenture (UK) Ltd | HMRC | Borders & Trade (variant) |
+| Redacted CapGemini.pdf | Capgemini UK Plc | HMRC | ETMP — SAP payment processing |
 
 ---
 
 ## 2. Results
 
-### Aggregate RAG vs Baseline Comparison
+### 2.1 Aggregate RAG vs Baseline
 
 | Metric | Baseline Mean | RAG Mean | Baseline Median | RAG Median |
 |--------|-------------|---------|----------------|-----------|
-| Quality (1-5) | 1.60 | 1.60 | 2.00 | 2.00 |
-| Faithfulness (0-1) | 0.99 | 0.96 | 1.00 | 1.00 |
-| Factual Correctness (0-1) | 0.99 | 0.94 | 1.00 | 1.00 |
-| Response Relevancy (0-1) | 0.65 | 0.65 | 0.65 | 0.65 |
+| **Quality (1–5)** | 1.83 | 1.81 | 2.00 | 2.00 |
+| Faithfulness (0–1) | 0.92 | **0.94** | 1.00 | 1.00 |
+| Factual Correctness (0–1) | 0.96 | **0.97** | 1.00 | 1.00 |
+| Response Relevancy (0–1) | 0.59 | 0.57 | 0.63 | 0.64 |
 
-### RAG-Specific Metrics
+Quality is a dead heat. The notable reversal: RAG now has better faithfulness (0.94 vs 0.92) and factual correctness (0.97 vs 0.96) than baseline. In the synthetic run, baseline led on both metrics. This may indicate that retrieved context helps the LLM stay grounded when processing complex, ambiguous real text.
 
-| Metric | Mean | Median |
-|--------|------|--------|
-| Context Precision | 0.05 | 0.00 |
-| Context Recall | 0.07 | 0.00 |
-| Noise Sensitivity | 0.00 | 0.00 |
-
-### Head-to-Head Comparison
+### 2.2 Head-to-Head (n=72 evaluated sections)
 
 | Metric | RAG > Baseline | RAG = Baseline | RAG < Baseline |
 |--------|---------------|----------------|----------------|
-| Quality | 10 (16%) | 40 (66%) | 10 (16%) |
-| Faithfulness | 1 (1%) | 52 (86%) | 7 (11%) |
-| Factual Correctness | 3 (5%) | 50 (83%) | 7 (11%) |
-| Response Relevancy | 15 (25%) | 21 (35%) | 24 (40%) |
+| Quality | 7 (9%) | 56 (77%) | 9 (12%) |
+| Faithfulness | 14 (19%) | 52 (72%) | 6 (8%) |
+| Factual Correctness | 8 (11%) | 53 (73%) | 11 (15%) |
+| Response Relevancy | 27 (37%) | 21 (29%) | 24 (33%) |
 
-### Per-Section Type Summary
+The quality head-to-head is closer to a dead heat than the synthetic run. The faithfulness head-to-head is interesting: RAG beats baseline in 14 sections (19%) and loses in only 6 (8%). This is a clear RAG advantage on faithfulness, the opposite of the synthetic run (where RAG lost on faithfulness 11% of the time and won only 1%).
 
-| Canonical Section | n | Baseline Avg Q | RAG Avg Q | RAG Better | RAG Worse |
-|------------------|---|---------------|-----------|------------|-----------|
-| Budget and Payment Terms | 5 | 1.80 | 2.00 | 2 | 1 |
-| Deliverables | 5 | 2.00 | 2.00 | 1 | 1 |
-| Scope of Work | 8 | 1.38 | 1.50 | 1 | 0 |
-| Project Timeline and Milestones | 15 | 1.60 | 1.67 | 3 | 2 |
-| Project Requirements | 12 | 1.58 | 1.50 | 2 | 4 |
-| Introduction/Background | 5 | 1.60 | 1.60 | 1 | 1 |
-| Project Management and Reporting | 3 | 2.00 | 1.67 | 0 | 1 |
-| Roles and Responsibilities | 3 | 1.33 | 1.00 | 0 | 1 |
-| Acceptance Criteria | 3 | 1.33 | 1.00 | 0 | 1 |
-| Intellectual Property and Confidentiality | 1 | 1.00 | 2.00 | 1 | 0 |
+### 2.3 RAG-Specific Metrics
 
-Budget and Payment Terms remains the only section type where RAG consistently outperforms baseline (avg 2.00 vs 1.80). This is the one area where the corpus contains concrete structural examples (rate tables, SFIA categories, payment milestone formats).
+| Metric | Mean | Median |
+|--------|------|--------|
+| Context Precision | 0.10 | 0.00 |
+| Context Recall | 0.28 | 0.00 |
+| Noise Sensitivity | 0.00 | 0.00 |
+
+Context recall at 0.28 means the retriever finds at least some relevant material in roughly a quarter of sections — up from 7% with synthetic docs. Medians remain 0.00 because the majority of sections still get zero relevant retrieval. Noise sensitivity remains perfect at 0.00.
+
+### 2.4 Per Canonical Section Breakdown
+
+| Canonical Section | n | Avg Baseline Q | Avg RAG Q | Notable |
+|-------------------|---|---------------|-----------|---------|
+| Warranties and Liabilities | 3 | **3.33** | **3.33** | Highest quality scores in the experiment |
+| IP and Confidentiality | 8 | 2.38 | **2.50** | RAG slightly ahead |
+| Budget and Payment Terms | 13 | 2.23 | 2.08 | Baseline now ahead (was RAG's best) |
+| Introduction/Background | 3 | 2.00 | 2.00 | Tied |
+| Scope of Work | 7 | 1.57 | 1.57 | Tied |
+| Sign-Off and Approvals | 8 | 1.50 | **1.75** | RAG ahead |
+| Deliverables | 2 | 2.00 | 1.50 | Baseline ahead (small sample) |
+| Project Management/Reporting | 7 | 1.43 | 1.43 | Tied |
+| Project Requirements | 13 | 1.46 | 1.46 | Tied |
+| Risk Management | 2 | 1.50 | 1.00 | Baseline ahead (small sample) |
+| Roles and Responsibilities | 4 | 1.25 | 1.00 | Baseline ahead |
+| Project Timeline/Milestones | 1 | 3.00 | 3.00 | Single sample |
+| Change Control | 1 | 1.00 | 1.00 | Single sample |
+
+Warranties and Liabilities sections achieve quality 3-4 consistently — these are legal boilerplate sections where the LLM's legal training data enables substantive improvement. IP and Confidentiality sections show the only clear RAG advantage (2.50 vs 2.38), likely because the corpus contains relevant security and data handling clauses.
+
+Budget and Payment Terms, previously RAG's strongest section type, now slightly favours baseline (2.23 vs 2.08 over a larger sample of 13 sections). The corpus's rate card and payment structure examples may be less helpful with real documents that already have detailed commercial terms.
 
 ---
 
 ## 3. Retrieval Analysis
 
-### Similarity Score Distribution (n=300 retrieved chunks)
+Retrieval similarity scores were not captured in the database export (the `RetrievedContextsJson` column stores chunk text but the export script didn't recover scores). However, the Ragas evaluation provides indirect evidence:
 
-| Statistic | Value |
-|-----------|-------|
-| Mean | 0.6442 |
-| Median | 0.6443 |
-| Min | 0.5530 |
-| Max | 0.7624 |
+- **Context precision 0.10** — the retriever found at least one relevant chunk in roughly 10% of cases
+- **Context recall 0.28** — when relevant material exists, the retriever finds some of it about a quarter of the time
+- Non-zero context recall appears in 20+ sections (vs ~10 in the synthetic run)
+- The highest context precision scores (0.87, 1.00) appear in framework boilerplate sections (Material KPIs, Security Applicable to SOW) where the corpus contains directly comparable text
 
-### Threshold Distribution
-
-| Threshold | Count | Percentage |
-|-----------|-------|------------|
-| >= 0.5 | 300/300 | 100% |
-| >= 0.6 | 258/300 | 86% |
-| >= 0.7 | 25/300 | 8% |
-| >= 0.8 | 0/300 | 0% |
-
-All 300 chunks pass the 0.3 similarity threshold, but similarity scores cluster tightly between 0.55–0.76. No chunk scores above 0.8, suggesting the retriever finds vaguely related material but never truly relevant content. The evaluator confirms this: context precision is 0.00 for 53 of 60 sections.
+The improvement over the synthetic run confirms the hypothesis: the corpus (CCS framework SoWs from HMRC) is more relevant to other CCS framework documents than to synthetic narrative SoWs. This is expected — the framework order form templates share structural elements across government departments.
 
 ---
 
 ## 4. Test Document Assessment
 
-### Synthetic Test Documents (used in this experiment)
+### Summary Table
 
-| Document | Domain | Buyer | Sections | Canonical Coverage | Realism | Baseline Quality | Suitability |
-|----------|--------|-------|----------|-------------------|---------|-----------------|-------------|
-| SOW_01 Cyber Security Assessment | Cyber | DSIT | 14 | 10/15 (good) | Medium | Good | Medium |
-| SOW_02 HMRC Digital Service Discovery | Digital/UX | HMRC | 12 | 9/15 (adequate) | Medium-High | Good | High |
-| SOW_03 NHS Data Platform Migration | Data/Cloud | NHS England | 13 | 9/15 (adequate) | Medium | Good | Medium |
-| SOW_04 MoJ Neurodiversity Training | Training/L&D | MoJ/HMPPS | 12 | 9/15 (adequate) | Medium | Good | Low |
-| SOW_05 FCDO Strategic Communications | Comms | FCDO | 12 | 9/15 (adequate) | Medium | Good | Low |
+| Document | Buyer | Framework | Realism | Completeness | Baseline Quality | Suitability |
+|----------|-------|-----------|---------|-------------|-----------------|-------------|
+| CCZN21A57 (Contracts Finder/FTS) | Cabinet Office | DOS5 RM1043.7 | High | High (10+ canonical sections) | Adequate | High |
+| RM1043 (Skynet 6 Lead Architect) | MoD Defence Digital | DOS5 RM1043.7 | High | Low (mostly order form) | Poor (as SoW) | Medium |
+| RM6263 (UC Continuity) | DWP | DSP RM6263 | High | High (order form + SoW) | Adequate | High |
+| SoW1 Comms (NDTP) | DBT | DSP RM6263 | High | High (full SoW template) | Good | High |
 
-#### Per-document assessment
+### Per-document assessment
 
-**SOW_01 — Cyber Security Assessment (DSIT).** Covers 10 canonical sections, well-structured with clear scope, deliverables table, acceptance criteria, and governance. The document reads as plausible but shows signs of synthesis: every section is cleanly formatted, no ambiguity, no cross-references to external schedules, and no procurement framework boilerplate. Real cyber assessment SoWs would typically reference specific framework lots, DEFCON clauses, and have messier scope definitions. Baseline writing quality is *good* — the prose is clear and professional, leaving little room for LLM improvement. This explains why quality scores cluster at 1-2: there's nothing substantially wrong to fix.
+**CCZN21A57 — Contracts Finder/FTS (Cabinet Office / NQC Ltd).** A DOS5 Lot 1 Digital Outcomes order form for maintaining and developing two e-notification services. This is a genuine FOI-released procurement document with real redaction ("REDACTED TEXT under FOIA Section 40"). It contains both the framework order form (call-off terms, incorporated schedules, liability, charges) and a substantial embedded SoW template with scope, deliverables, milestones, KPIs, and reporting requirements. 70 sections is a large document — the system extracts many sub-sections from the framework template. Contract value £4M, 2-year term, T&M pricing. Realism is high; this is exactly the kind of document the SoW improver would process in production. The DOS5 framework structure overlaps with the corpus documents (also CCS framework SoWs), making this the best test of whether corpus retrieval adds value with structurally similar real documents.
 
-**SOW_02 — HMRC Digital Service Discovery/Alpha.** The closest to a realistic SoW in the set because the domain (HMRC digital services) overlaps with the corpus, and the structure mirrors GDS-era discovery/alpha patterns. Includes team composition, ways of working, and co-location requirements — details you'd see in real SoWs. However, the conspicuous absence of a framework order form, commercial schedule references, IR35 status, and security clearance boilerplate marks it as synthetic. Baseline quality is *good*. The HMRC domain overlap makes this the most useful test document for evaluating whether corpus retrieval helps — but context precision/recall are still 0.00 for 10/12 sections, showing the corpus doesn't cover user research, prototyping, or accessibility content.
+**RM1043 — Skynet 6 Lead Architect (MoD / People Source Consulting).** A DOS5 Lot 2 Digital Specialists order form for a single contractor placement on the Skynet 6 satellite communications programme. This is an edge case — it's primarily an order form, not a traditional SoW. The "SoW" content is minimal: a brief Call-Off Specification describing architecture work needs, with most detail in incorporated schedules. Includes DEFCON clauses (531, 602B, 609, 627, 658, 659A, 660), MOD Terms, and IR35 determination — content not found in the corpus. Contract value £153K, 12 months. The document tests how the system handles SoWs where there's very little substantive content to improve. Many sections are "Not Applicable" or placeholder text, which the LLM struggles with (quality stays at 1). The MoD/defence domain is completely absent from the corpus.
 
-**SOW_03 — NHS Data Platform Migration.** Well-structured technical SoW with phases, deliverables table, and hypercare handover. Plausible domain (cloud migration) but the clean four-phase structure with no dependencies, no integration partners, and no procurement boilerplate reveals synthesis. The Phase 2 build task list is the most realistic section — detailed Azure-specific activities. Baseline quality is *good*. The RAG version of Phase 2 converted the bullet list to flowing prose (faithfulness 0.00), the most dramatic failure case in the experiment.
+**RM6263 — UC Continuity of Service (DWP / Astraeus Consulting).** A DSP Lot 2 order form for a 29-person development team maintaining Universal Credit. The largest document in the set at 140 sections, including a detailed DDaT role/rate card (9 role types at SFIA levels 3-6, all rates redacted), DWP-specific offshoring and security clauses, and SoW template content. Contract value up to £9M over 2 years. The rate card structure is directly comparable to corpus material (Accenture and Capgemini rate cards). The document has heavy redaction of financial values. Only 21 of 140 sections have been evaluated — the batch was cancelled before evaluation completed this document, so the data here is the thinnest.
 
-**SOW_04 — MoJ Neurodiversity Training.** An unusual domain for a SoW — training programme design and delivery. The content is plausible (co-design requirements, train-the-trainer, Kirkpatrick evaluation framework) but the domain is so far from the HMRC-focused corpus that retrieval has no useful material to surface. Context precision/recall are 0.00 for 10/11 sections. As a test of RAG vs baseline, this document primarily tests how well the model ignores irrelevant context — and it does (noise sensitivity 0.00). Low suitability for evaluating whether RAG *helps*, useful only for testing that RAG doesn't *harm*.
+**SoW1 — Comms and Training (DBT / Southerly Communications).** Not yet processed in this run, but the most complete real SoW in the test set. A full DSP SoW template with 16 milestones (with acceptance criteria and due dates), risk/assumption/dependency tables, supplier resource plan, and rate card for a 73-working-day comms engagement for the National Digital Twin Programme. Contains genuine quality issues: "communicatiosn" typo, "identifcal" misspelling, some vague acceptance criteria. This would be the most valuable single test document for evaluating the improvement pipeline because it has both good structure for the system to work with and real flaws to fix.
 
-**SOW_05 — FCDO Strategic Communications.** Another domain with zero corpus overlap. The content is plausible but reads as a consulting brief rather than a government SoW — no framework references, no IR35, no security clearance requirements. The Commercials section is the only one where RAG helped (quality 3 vs baseline 2, context recall 0.25), consistent with the pattern that Budget/Payment Terms is where corpus material adds value.
+### Overall test set composition
 
-#### Overall assessment of synthetic test set
+**Strengths:** All four documents are genuine redacted government SoWs obtained under FOI. They use real CCS framework templates (DOS5, DSP) with legal schedules, DEFCON references, IR35 determinations, and call-off terms — structural elements shared with the corpus. Three different government departments (Cabinet Office, MoD, DWP) and a fourth (DBT) pending. Variable quality from a single-role placement (RM1043) to a full SoW template (SoW1 Comms). Genuine redaction artefacts.
 
-**Strengths:** Good domain diversity (cyber, digital, data, training, comms), five different government departments, and consistent structure that makes section-level comparison straightforward.
-
-**Weaknesses — and they are significant:**
-
-1. **Too clean.** Every document is well-written, clearly structured, and internally consistent. Real SoWs are messy — sections get copy-pasted from previous contracts, scope descriptions are vague or contradictory, commercial terms are buried in cross-references to framework schedules. The synthetic documents give the baseline LLM a polished starting point, making it hard for RAG to add value. When the original is already quality 1 on a 1-5 scale but the writing is actually competent, the evaluator is underscoring originals, not identifying genuinely poor content.
-
-2. **No framework boilerplate.** Real CCS framework SoWs (DOS5, DSP) come wrapped in extensive order form templates with legal schedules, DEFCON references, IR35 determinations, and call-off terms. These synthetic docs skip all of that. This matters because the corpus *does* contain framework boilerplate, and a real test would reveal whether RAG can help navigate and improve content embedded within that structure.
-
-3. **No redaction artefacts.** The synthetic documents have no "[REDACTED]" blocks, no blanked-out names, no removed financial figures. Real documents have redaction gaps that create context loss and confuse both the LLM and the evaluator. Testing without redaction artefacts understates the difficulty of the real task.
-
-4. **Uniform quality.** All five documents are written to roughly the same quality standard. A better test set would include one genuinely poor SoW (vague scope, missing sections, unclear deliverables) and one very polished one, to test whether RAG helps more when the starting quality is lower.
-
-### Real Test Documents (available but not yet evaluated)
-
-Four real redacted SoWs have been added to `test-sows/`:
-
-| Document | Domain | Buyer | Supplier | Framework | Format | Est. Quality |
-|----------|--------|-------|----------|-----------|--------|-------------|
-| CCZN21A57 DOS5 Order Form | Digital (Contracts Finder/FTS) | Cabinet Office | NQC Ltd | DOS5 (RM1043.7) | Order Form + SoW ref | Adequate |
-| RM1043 SK6 Lead Architect | Defence (Skynet 6 architecture) | Defence Digital (MoD) | People Source Consulting | DOS5 (RM1043.7) | Order Form only | Poor (as SoW) |
-| RM6263 UC Continuity of Service | Digital (Universal Credit) | DWP | Astraeus Consulting | DSP (RM6263) | Order Form + rate card | Adequate |
-| SoW1 Comms and Training | Digital (NDTP website/comms) | DBT | Southerly Communications | DSP (RM6263) | Full SoW template | Good |
-
-#### Per-document assessment
-
-**CCZN21A57 — Contracts Finder/FTS (Cabinet Office/NQC).** A DOS5 Lot 1 (Digital Outcomes) order form for maintaining and developing Contracts Finder and Find a Tender services. The document is primarily the framework order form — call-off terms, incorporated schedules, charges, liability caps, payment method — with the actual SoW content referenced via Call-Off Schedule 20 (not included in the PDF). What *is* visible: contract value (£4M), T&M pricing, 2-year term, Google Cloud subcontractor, Cyber Essentials Plus requirement. As test material for the SoW improver, it's challenging: most of the document is legal/commercial boilerplate that the system's 15 canonical sections won't match well. The actual deliverables and scope are in a separate document. This tests how the system handles SoWs where the interesting content is *not* in the uploaded PDF.
-
-**RM1043 — Skynet 6 Lead Architect (MoD/People Source).** A DOS5 Lot 2 (Digital Specialists) order form for a single lead architect role on the Skynet 6 satellite communications programme. This is barely a SoW — it's an order form for contractor placement. No scope section, no deliverables table, no methodology. The "Call-Off Specification" (Schedule 20) contains a brief description of the architecture work. Includes DEFCON clauses, IR35 determination, MOD-specific security terms. Contract value £153K, 12 months, capped T&M. Realism is *high* — this is exactly what many government "SoWs" look like in practice. Baseline quality as a SoW is *poor* because it doesn't attempt to be one. This would be a valuable edge-case test: can the system handle a document that isn't structured as a traditional SoW?
-
-**RM6263 — UC Continuity of Service (DWP/Astraeus).** A DSP Lot 2 order form for a 29-person development team maintaining Universal Credit digital services. Includes a detailed DDaT role/rate card table (9 role types, SFIA levels 3-6, all rates redacted). Contract value up to £9M over 2 years. Includes DWP-specific offshoring clauses, security requirements, and Cyber Essentials Plus. Like the others, the actual SoW content is in Call-Off Schedule 20. The rate card is the most interesting structural element — it's the kind of concrete tabular data the corpus also contains, so this tests whether RAG can improve commercial sections using similar corpus material.
-
-**SoW1 — Comms and Training (DBT/Southerly Communications).** The most complete real SoW in the set. Full DSP template with milestones table (16 milestones with acceptance criteria and due dates), risk/assumption/dependency tables, supplier resource plan, rate card, and reporting requirements. The content is a 73-working-day engagement for website work, event support, and training material design for the National Digital Twin Programme. Baseline quality is *good* — well-structured, specific, with clear deliverables. There are genuine quality issues to fix: "communicatiosn" typo in the background, "identifcal" in the milestones, some milestone acceptance criteria are vague. This is the most suitable real document for testing RAG vs baseline because it has both structure the system can work with and genuine quality issues to improve.
-
-#### Overall assessment of real test set
-
-**Strengths compared to synthetic set:**
-
-1. **Real framework boilerplate.** All four documents use actual CCS framework templates (DOS5, DSP). They contain the legal schedules, IR35 clauses, DEFCON references, and commercial terms that real SoWs live within. This tests whether the system can find and improve the actual SoW content within the noise of framework documentation.
-
-2. **Genuine redaction.** Real "[REDACTED]" blocks, blanked-out names, removed financial figures. Tests the system's handling of incomplete text.
-
-3. **Variable quality and structure.** From a single-role placement order form (SK6 Lead Architect) to a fully-populated SoW template (Comms and Training). Tests the system across a realistic range of document quality.
-
-4. **Real typos and quality issues.** The Comms SoW has genuine spelling errors and some vague acceptance criteria — exactly the kind of issues the improvement pipeline should catch.
-
-**Weaknesses:**
-
-1. **Small set (4 documents).** Not enough for statistical significance, same as the synthetic set.
-
-2. **Mostly order forms, not SoWs.** Three of four documents are primarily framework order forms where the actual SoW content is in a separate Call-Off Schedule 20 that isn't included. The system will see a lot of legal/commercial text and very little scope/deliverables content.
-
-3. **Still HMRC-adjacent.** The Capgemini corpus documents overlap with two of these (CCZN21A57 and the DWP contract are in similar procurement frameworks). The MoD and DBT documents provide domain diversity.
+**Weaknesses:** Three of four documents are primarily framework order forms where much of the content is legal/commercial boilerplate rather than SoW narrative. This inflates section count (70, 47, 140 sections vs 12-14 for synthetic docs) but many sections are "N/A", placeholder text, or signature blocks that the improvement pipeline can't meaningfully improve. The fourth document (Comms SoW) — which has the most traditional SoW structure — wasn't processed. Only 4 documents total, insufficient for statistical significance.
 
 ---
 
 ## 5. Corpus Assessment
 
-Unchanged from the 2026-03-19 report. In brief:
+Unchanged from the previous report. The corpus remains 4 redacted HMRC SoWs (effectively 3 unique) from Accenture and Capgemini:
 
-- **Too small** — 27 chunks from 4 documents (effectively 3 unique, as two Accenture documents are near-duplicates)
-- **Single client** — all HMRC, from Accenture or Capgemini only
-- **Domain mismatch** — corpus covers HMRC-specific SAP, HR/Finance, and Borders & Trade; test documents span cyber security, NHS data, MoJ training, FCDO communications
-- **Redaction removes value** — concrete details stripped, leaving generic procurement prose
+- **Too small** — 27 chunks from 4 documents
+- **Single client** — all HMRC
+- **Redaction strips value** — concrete details removed, leaving generic procurement prose
 
-The one area where corpus material helps (Budget/Payment Terms) is where the corpus has the most concrete structural examples: rate tables, SFIA categories, payment milestone formats.
+**New finding this run:** The corpus is more relevant to real CCS framework documents than to synthetic ones. Context recall jumped from 0.07 to 0.28. The framework boilerplate, commercial terms, and security clauses in the corpus genuinely overlap with other CCS framework SoWs. This suggests the corpus is not useless — it's just being tested against the wrong material in the synthetic run.
 
 ---
 
 ## 6. Qualitative Analysis
 
-Same cases as the 2026-03-19 report (the data is unchanged):
+### Case 1: Buyer's Authorised Representative — RAG adds structure but hallucinates
 
-### Case 1: Phase 2 Build and Test — RAG converts list to prose (worse)
+**RM6263 / BUYER'S AUTHORISED REPRESENTATIVE** — Quality: baseline 2, RAG 1. Faithfulness: baseline 1.00, RAG 0.50.
 
-**SOW_03 / Phase 2** — Quality: baseline 1, RAG 2. Faithfulness: baseline 1, RAG 0.
+The original is a single redacted line: "REDACTED - Deputy Director Universal Credit and Working Age REDACTED DWP, Benton Park View, Newcastle, NE98 1YX". The **baseline** expanded this into a clean sentence identifying the role and address. The **RAG** version added "The designated base location for this representative is" — inferring a meaning ("base location") not present in the original, where it's simply an address. Faithfulness dropped to 0.50.
 
-The original is a clean bullet list of Azure build tasks. Baseline preserved the list format with minor wording improvements. RAG converted the list into a single dense paragraph. Quality scored higher but faithfulness dropped to 0 — the evaluator penalised the structural transformation. RAG borrowed a "flowing prose" style from the corpus.
+**Interpretation:** RAG introduced a subtle reinterpretation of the address field. This is a real-world failure mode: the LLM reads corpus patterns (where locations are often "base locations") and applies that framing to content where it doesn't fit.
 
-### Case 2: Deliverables table — RAG adds professional framing
+### Case 2: Commercially Sensitive Information — baseline over-elaborates, RAG stays faithful
 
-**SOW_03 / Deliverables** — Quality: baseline 2, RAG 3. Faithfulness: baseline 1, RAG 0.83.
+**CCZN21A57 / Commercially Sensitive Information** — Quality: baseline 2, RAG 1. Faithfulness: baseline 0.67, RAG 1.00.
 
-RAG added "The Supplier shall deliver the following outputs in accordance with the schedule specified below:" before the table. This is a genuine RAG contribution — the phrasing is visible in corpus documents. Quality 3, the highest in the experiment.
+The original is: "Not applicable (Suppliers Price breakdown and Tender Details are confidential and will not be shared)". The **baseline** expanded this into two sentences, adding "No other commercially sensitive information is applicable" — a reasonable but fabricated addition. The **RAG** version stayed closer to the original phrasing. RAG scored lower on quality (1 vs 2) but higher on faithfulness (1.00 vs 0.67).
 
-### Case 3: Objectives — RAG restructures prose into list
+**Interpretation:** This shows the quality-faithfulness trade-off. The baseline added plausible professional framing that the evaluator rewarded, but it introduced content not in the original. RAG was more conservative and more faithful. Whether quality or faithfulness matters more depends on the use case.
 
-**SOW_01 / Objectives** — Quality: baseline 1, RAG 2. Faithfulness: both 1.
+### Case 3: Buyer's Standards — RAG improves "N/A" handling
 
-RAG broke a semicolon-separated list into proper bullets. Quality improved with perfect faithfulness.
+**CCZN21A57 / Buyer's Standards** — Quality: baseline 1, RAG 2. Faithfulness: baseline 0.75, RAG 1.00.
 
-### Case 4: Background — RAG barely changes anything
+The original states the supplier shall comply with Framework Schedule 1 standards, then "N/A" for additional standards. The **baseline** preserved the "N/A" verbatim. The **RAG** version rephrased "N/A" as "The Buyer does not require the Supplier to comply with any additional Standards beyond those specified" — converting a placeholder into a proper negative statement. Quality improved from 1 to 2 with perfect faithfulness.
 
-**SOW_02 / Background** — Quality: baseline 2, RAG 1. Faithfulness: baseline 0.92, RAG 1.
+**Interpretation:** A genuine RAG success. The rephrasing of "N/A" into a clear negative statement is a meaningful improvement that preserves the original meaning. Whether this came from corpus patterns or the model's own knowledge is unclear (context precision was 0.00), but the RAG pipeline produced a better result.
 
-Baseline made substantive wording improvements; RAG version was nearly identical to the original. The retrieved chunk was completely irrelevant (supplier compliance obligations).
+### Case 4: Sign-off blocks — neither approach helps
+
+**RM1043 / For and on behalf of the Supplier** — Quality: baseline 2, RAG 1. Faithfulness: baseline 0.75, RAG 1.00.
+
+The original is a redacted signature block. The **baseline** reformatted with bold markdown labels. The **RAG** version kept the original format. Quality favoured baseline's formatting, but faithfulness favoured RAG's conservatism.
+
+**Interpretation:** Sign-off blocks are a recurring pattern in real framework documents (8 sections in this run, vs 0 in the synthetic run). Neither approach can meaningfully improve redacted placeholder text. The system would benefit from detecting and skipping these sections.
 
 ---
 
 ## 7. Discussion
 
-### 7.1 The Test Document Problem
+### 7.1 Real Documents Are a Better Test
 
-The most important finding from the document assessment is that **the synthetic test documents are too clean to meaningfully test the improvement pipeline.** Every original section is competently written, clearly structured, and internally consistent. When the starting quality is already adequate, both baseline and RAG produce only marginal wording-level changes — and the evaluator correctly scores these as low-impact (quality 1-2).
+The shift from synthetic to real documents is the most important change in this run. Key differences:
 
-The real test documents tell a different story. The Comms SoW (Southerly/DBT) has genuine typos, vague acceptance criteria, and the kind of structural inconsistency that a real improvement system should catch. The order-form-heavy documents (CCZN21A57, SK6 Lead Architect, UC Continuity) present a different challenge: can the system identify and improve the actual SoW content buried within framework boilerplate?
+1. **Wider quality score range.** Quality scores reach 4 for the first time (Maximum Liability sections in both CCZN21A57 and RM1043). The evaluator can differentiate better when the input material has real complexity — legal boilerplate, framework cross-references, ambiguous scope.
 
-Until the experiment is re-run with the real documents, we cannot assess whether RAG helps with genuinely imperfect SoWs.
+2. **More sections, more noise.** The 3 real documents produced 257 sections vs 63 for 5 synthetic docs. Many of these are framework boilerplate (schedules, definitions, signatures) that the 15 canonical section matcher maps imperfectly. The system's section detection wasn't designed for framework order forms.
 
-### 7.2 Why RAG Still Doesn't Help (on these documents)
+3. **Retrieval is more relevant.** Context recall 4x improvement (0.07 → 0.28) because the corpus and test documents share framework structure. This is the first evidence that the corpus provides value — but it's structural similarity (shared CCS framework patterns), not domain-specific content.
 
-Same as the previous report: the corpus is too small, too homogeneous, and too heavily redacted. The retriever returns the same generic chunks for every section type. Context precision is 0.00 for 53/60 sections.
+### 7.2 The Section Count Problem
 
-### 7.3 Evaluator Limitations
+Real framework documents have far more sections than the system expects. The 15 canonical sections assume a traditional SoW structure (Background, Scope, Deliverables, etc.). A DOS5 order form has call-off terms, incorporated schedules, liability caps, payment methods, DEFCON clauses, balanced scorecards, and signature blocks — none of which map cleanly to the canonical sections. The section matcher forces them into the closest canonical category, producing poor matches (e.g., "Cyber Essentials Scheme" → "Intellectual Property and Confidentiality").
 
-The evaluator scores all 60 originals at quality 1. The synthetic originals are competently written — they should not all score 1. Either the evaluator systematically underscores unimproved text (likely, given it's the same model that wrote the improvements), or the quality rubric is poorly calibrated.
+This matters because the per-section RAG retrieval uses the canonical section name to contextualise the search. When the canonical match is wrong, the retriever looks for the wrong kind of content.
+
+### 7.3 RAG's Faithfulness Advantage
+
+The most surprising finding: RAG now has *better* average faithfulness (0.94 vs 0.92) and factual correctness (0.97 vs 0.96) than baseline. In the synthetic run, the reverse was true. One hypothesis: when processing complex real text with redaction gaps and legal language, the retrieved context acts as an anchor, keeping the LLM closer to established patterns rather than inventing filler. The baseline, without this anchor, occasionally fabricates plausible-sounding additions (as in the Commercially Sensitive Information case).
 
 ### 7.4 Limitations
 
+- **Partial data.** Only 72 of 257 sections evaluated. The 4th document (and most SoW-like) wasn't processed at all.
 - **Evaluator bias.** Same model improves and evaluates.
-- **Single-run variance.** No repeated trials.
-- **Synthetic test documents.** All 5 test SoWs are fictional and uniformly well-written, making it hard for any improvement approach to demonstrate value.
-- **Quality scale compression.** Scores cluster at 1-2; the 1-5 scale is effectively 1-3.
-- **Thinking mode disabled.** Reasoning disabled for speed.
+- **Single run.** No repeated trials.
+- **Section matcher limitations.** Framework order form sections don't map well to the 15 canonical sections, degrading both retrieval relevance and evaluation accuracy.
+- **Missing retrieval scores.** Similarity scores weren't recovered from the database, so retrieval quality analysis is limited to Ragas metrics.
 
 ---
 
 ## 8. Recommendations
 
-### Highest priority
+### Immediate (complete the experiment)
 
-1. **Re-run the experiment with the real test documents.** The 4 real redacted SoWs in `test-sows/` are more representative of actual system usage. They include framework boilerplate, redaction artefacts, variable quality, and genuine errors. This is the single highest-value next step — it tests whether the current findings hold when the input quality is more realistic. Run: `dotnet run --project SoWImprover.BatchRunner -- test-sows`
+1. **Complete the batch run.** Re-run with `--resume` or re-run fully against the 4 real documents. The Comms SoW (SoW1) is the most valuable test document and wasn't processed. Completing evaluation for all sections would give a much more robust dataset.
 
-2. **Re-run evaluation with a cloud LLM evaluator.** Still the most important methodological improvement. The same-model evaluation bias is the biggest threat to result validity.
-
-### Test set improvements
-
-3. **Add a deliberately poor-quality SoW** to the test set — one with vague scope, missing sections, contradictory terms, and unclear deliverables. This tests whether RAG adds more value when the starting quality is lower (the hypothesis is yes, but we haven't tested it).
-
-4. **Include at least one SoW close to the corpus domain** (HMRC, SAP/finance). The current synthetic set has SOW_02 (HMRC digital) which is domain-adjacent but not in the specific sub-domains the corpus covers. A test SoW about HMRC tax platform development or Borders & Trade would directly test whether domain-matched retrieval works.
-
-### Corpus improvements
-
-5. **Expand the corpus to 20+ documents** from multiple clients, sectors, and procurement frameworks. Still the fundamental bottleneck.
-
-6. **Add unredacted or lightly-redacted structural examples.** Rate tables, deliverables matrices, and acceptance criteria templates are the highest-value additions.
+2. **Add incremental export to the batch runner.** The batch runner currently exports only after all documents complete. If it wrote `experiment-results.json` after each document, cancelling a long run wouldn't lose data. This is a small code change to `Program.cs`.
 
 ### Methodological improvements
 
-7. **Run multiple trials** (3-5 runs per document) to capture output variance.
+3. **Re-run evaluation with a cloud LLM.** Still the highest priority validation step.
 
-8. **Switch to comparative evaluation** ("is A better than B?") rather than absolute scoring. Comparative judgements are more reliable for LLM evaluators than absolute 1-5 scales.
+4. **Add framework-aware section detection.** The current 15 canonical sections don't cover framework order form content (liability, schedules, definitions, signature blocks). Either expand the canonical section list for framework documents, or add a filter to skip non-SoW sections before improvement.
 
-9. **Implement section-type-specific retrieval.** Tag chunks with their canonical section type at indexing time and filter retrieval to matching types.
+5. **Run multiple trials** to capture variance.
+
+### Corpus improvements
+
+6. **Expand the corpus to 20+ documents.** The improved context recall with real documents (0.28 vs 0.07) shows the corpus *is* more relevant to real CCS framework SoWs. More corpus documents from different government departments and frameworks would amplify this signal.
+
+7. **Add DOS5 and DSP framework template examples** to the corpus specifically, since the test documents use these frameworks. The generic framework boilerplate (incorporated terms, definitions, schedules) is consistent across departments and could be retrieved effectively.
+
+### Test set improvements
+
+8. **Include the Comms SoW** (already in `test-sows/`). It's the most traditional SoW in the set and has genuine quality issues.
+
+9. **Consider filtering or weighting sections.** A document with 140 sections (RM6263) dominates aggregate metrics. Many of its sections are framework boilerplate or placeholders. Section-level analysis should distinguish between "real SoW content" and "framework wrapper".
