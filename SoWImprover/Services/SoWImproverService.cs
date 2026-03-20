@@ -17,7 +17,8 @@ public class SoWImproverService(
 
     public virtual async Task<ImprovementResult> ImproveAsync(
         string originalText, GoodDefinition definition,
-        IProgress<string>? progress = null, CancellationToken ct = default)
+        IProgress<string>? progress = null, bool parallel = false,
+        CancellationToken ct = default)
     {
         var sections = SplitIntoSections(originalText);
 
@@ -77,10 +78,7 @@ public class SoWImproverService(
             progress?.Report($"Improving: {section.Title} ({improvedCount} of {totalToImprove})");
             logger.LogInformation("Improving section '{Title}' → '{Canonical}'", section.Title, matchedName);
 
-            // Baseline: same prompt but no RAG context
-            var baseline = await ImproveSectionAsync(section, [], definedSection.Content, ct);
-
-            // RAG-enhanced: retrieve relevant chunks and improve
+            // Retrieve relevant chunks (fast, no LLM call — must happen before RAG improvement)
             if (definition.Retriever is null)
                 throw new InvalidOperationException(
                     "Definition retriever is not available. Ensure the corpus has finished loading before improving documents.");
@@ -95,7 +93,22 @@ public class SoWImproverService(
             if (scored.Count == 0)
                 logger.LogInformation("  No chunks above relevance threshold — using baseline only");
 
-            var improved = await ImproveSectionAsync(section, chunks, definedSection.Content, ct);
+            // Improve section: baseline (no RAG) and RAG-enhanced
+            string baseline, improved;
+            if (parallel)
+            {
+                var baselineTask = ImproveSectionAsync(section, [], definedSection.Content, ct);
+                var ragTask = ImproveSectionAsync(section, chunks, definedSection.Content, ct);
+                var results = await Task.WhenAll(baselineTask, ragTask);
+                baseline = results[0];
+                improved = results[1];
+            }
+            else
+            {
+                baseline = await ImproveSectionAsync(section, [], definedSection.Content, ct);
+                improved = await ImproveSectionAsync(section, chunks, definedSection.Content, ct);
+            }
+
             var explanation = await ExplainChangesAsync(section, improved, ct);
 
             sectionResults.Add(new SectionResult

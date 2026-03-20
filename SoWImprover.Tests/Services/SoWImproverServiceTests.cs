@@ -267,6 +267,36 @@ public class SoWImproverServiceTests
         Assert.EndsWith("…", result.ChunksUsed[0].Snippet);
     }
 
+    [Fact]
+    public async Task ImproveAsync_ParallelMode_ProducesSameResults()
+    {
+        var callCount = 0;
+        _chat.CompleteAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(ci =>
+            {
+                callCount++;
+                return callCount switch
+                {
+                    1 => "{\"Introduction\": \"Scope of Work\"}", // matching
+                    2 => "Baseline content.",                      // baseline
+                    3 => "RAG improved content.",                   // RAG improvement
+                    4 => "- Better structure",                      // explanation
+                    _ => ""
+                };
+            });
+
+        var definition = CreateReadyDefinition();
+        var result = await _service.ImproveAsync(
+            "The supplier shall provide all necessary resources and personnel to deliver the services described in this statement of work.",
+            definition, parallel: true);
+
+        Assert.Single(result.Sections);
+        Assert.False(result.Sections[0].Unrecognised);
+        Assert.NotNull(result.Sections[0].BaselineContent);
+        Assert.NotNull(result.Sections[0].ImprovedContent);
+        Assert.NotNull(result.Sections[0].Explanation);
+    }
+
     private static GoodDefinition CreateReadyDefinitionWithLongChunk()
     {
         var embedding = Substitute.For<IEmbeddingService>();

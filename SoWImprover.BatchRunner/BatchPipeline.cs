@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SoWImprover.Data;
 using SoWImprover.Models;
 using SoWImprover.Services;
@@ -10,6 +11,7 @@ public class BatchPipeline(
     DocumentLoader loader,
     SoWImproverService improver,
     IDbContextFactory<SoWDbContext> dbFactory,
+    IConfiguration configuration,
     ConsoleLogger log)
 {
     public async Task<(DocumentEntity Entity, ImprovementResult Result)> ProcessDocumentAsync(
@@ -23,7 +25,8 @@ public class BatchPipeline(
         log.Log($"Extracted {wordCount} words");
 
         log.Log("Improving sections (baseline + RAG)...");
-        var result = await improver.ImproveAsync(text, definition, log.AsProgress(1), ct);
+        var parallelImprove = configuration.GetValue<bool>("FeatureManagement:ParallelImprovement");
+        var result = await improver.ImproveAsync(text, definition, log.AsProgress(1), parallelImprove, ct);
 
         var recognised = result.Sections.Count(s => !s.Unrecognised);
         var unrecognised = result.Sections.Count(s => s.Unrecognised);

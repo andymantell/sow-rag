@@ -57,11 +57,12 @@ public class BatchPipelineTests
         };
         improver.ImproveAsync(
             Arg.Any<string>(), Arg.Any<GoodDefinition>(),
-            Arg.Any<IProgress<string>>(), Arg.Any<CancellationToken>())
+            Arg.Any<IProgress<string>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(result);
 
         var log = new ConsoleLogger(TextWriter.Null);
-        var pipeline = new BatchPipeline(loader, improver, dbFactory, log);
+        var pipelineConfig = new ConfigurationBuilder().Build();
+        var pipeline = new BatchPipeline(loader, improver, dbFactory, pipelineConfig, log);
 
         // Act
         var (docEntity, sectionResults) = await pipeline.ProcessDocumentAsync(
@@ -111,11 +112,12 @@ public class BatchPipelineTests
         var dbFactory = sp.GetRequiredService<IDbContextFactory<SoWDbContext>>();
 
         var log = new ConsoleLogger(TextWriter.Null);
+        var pipelineConfig = new ConfigurationBuilder().Build();
         var pipeline = new BatchPipeline(
             loader,
             Substitute.ForPartsOf<SoWImproverService>(
                 Substitute.For<IChatService>(), Substitute.For<ILogger<SoWImproverService>>()),
-            dbFactory, log);
+            dbFactory, pipelineConfig, log);
 
         // Act & Assert — pipeline throws, caller (Program.cs) catches and continues
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -158,11 +160,12 @@ public class BatchPipelineTests
         };
         improver.ImproveAsync(
             Arg.Any<string>(), Arg.Any<GoodDefinition>(),
-            Arg.Any<IProgress<string>>(), Arg.Any<CancellationToken>())
+            Arg.Any<IProgress<string>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(result);
 
         var log = new ConsoleLogger(TextWriter.Null);
-        var pipeline = new BatchPipeline(loader, improver, dbFactory, log);
+        var pipelineConfig = new ConfigurationBuilder().Build();
+        var pipeline = new BatchPipeline(loader, improver, dbFactory, pipelineConfig, log);
 
         // Act
         await pipeline.ProcessDocumentAsync("unrecognised.pdf", new GoodDefinition(), CancellationToken.None);

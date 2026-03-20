@@ -107,6 +107,7 @@ var pipeline = new BatchPipeline(
     sp.GetRequiredService<DocumentLoader>(),
     sp.GetRequiredService<SoWImproverService>(),
     dbFactory,
+    config,
     log);
 var evalRunner = new EvaluationRunner(
     sp.GetRequiredService<EvaluationService>(),
