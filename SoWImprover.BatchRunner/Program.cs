@@ -116,6 +116,7 @@ var evalRunner = new EvaluationRunner(
     config,
     log);
 var allResults = new List<(DocumentEntity Entity, ImprovementResult Result)>();
+var exportPath = Path.Combine(Directory.GetCurrentDirectory(), "experiment-results.json");
 
 for (var i = 0; i < pdfs.Length; i++)
 {
@@ -129,6 +130,21 @@ for (var i = 0; i < pdfs.Length; i++)
 
         log.Log("");
         await evalRunner.EvaluateDocumentAsync(entity, result.Sections, CancellationToken.None);
+
+        // Incremental export after each document
+        var corpusDocsIncr = Directory.GetFiles(resolvedCorpusFolder, "*.pdf")
+            .Select(Path.GetFileName)
+            .Where(f => f is not null)
+            .ToList();
+        var incrJson = ExperimentExporter.BuildJson(
+            allResults,
+            corpusFolder: resolvedCorpusFolder,
+            corpusDocuments: corpusDocsIncr!,
+            totalChunks: definition.ChunkCount,
+            chatModel: config["Ollama:ChatModelName"] ?? "unknown",
+            embeddingModel: config["Ollama:EmbeddingModelName"] ?? "unknown");
+        await ExperimentExporter.WriteAsync(exportPath, incrJson);
+        log.Log($"Partial results exported ({allResults.Count}/{pdfs.Length} documents)");
     }
     catch (Exception ex)
     {
@@ -156,7 +172,6 @@ var json = ExperimentExporter.BuildJson(
     chatModel: config["Ollama:ChatModelName"] ?? "unknown",
     embeddingModel: config["Ollama:EmbeddingModelName"] ?? "unknown");
 
-var exportPath = Path.Combine(Directory.GetCurrentDirectory(), "experiment-results.json");
 await ExperimentExporter.WriteAsync(exportPath, json);
 
 log.Log($"Results exported to: {exportPath}");
