@@ -70,6 +70,7 @@ public class EvaluationService(
     /// </summary>
     public virtual async IAsyncEnumerable<(int Index, SectionScores Scores)> EvaluateStreamingAsync(
         List<SectionInput> sections,
+        bool parallel = false,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var endpoint = configuration["Ollama:Endpoint"]
@@ -97,6 +98,8 @@ public class EvaluationService(
             CreateNoWindow = true
         };
         psi.ArgumentList.Add(scriptPath);
+        if (parallel)
+            psi.ArgumentList.Add("--parallel");
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start Python process for Ragas evaluation.");

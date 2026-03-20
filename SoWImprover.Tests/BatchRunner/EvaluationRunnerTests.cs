@@ -64,7 +64,7 @@ public class EvaluationRunnerTests
             NoiseSensitivityScore = 0.1
         };
         evaluator.EvaluateStreamingAsync(
-                Arg.Any<List<EvaluationService.SectionInput>>(), Arg.Any<CancellationToken>())
+                Arg.Any<List<EvaluationService.SectionInput>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ToAsyncEnumerable((0, scores)));
 
         var summaryService = Substitute.For<IEvaluationSummaryService>();
@@ -87,7 +87,7 @@ public class EvaluationRunnerTests
         };
 
         var log = new ConsoleLogger(TextWriter.Null);
-        var runner = new EvaluationRunner(evaluator, summaryService, dbFactory, log);
+        var runner = new EvaluationRunner(evaluator, summaryService, dbFactory, config, log);
 
         // Act
         await runner.EvaluateDocumentAsync(entity, sectionResults, CancellationToken.None);

@@ -208,7 +208,7 @@
             var completed = 0;
             int? prevStreamIdx = null;
 
-            await foreach (var (streamIdx, scores) in Evaluator.EvaluateStreamingAsync(evalInputs, _evalCts.Token))
+            await foreach (var (streamIdx, scores) in Evaluator.EvaluateStreamingAsync(evalInputs, ct: _evalCts.Token))
             {
                 if (streamIdx < 0 || streamIdx >= toEvaluate.Count) continue;
 

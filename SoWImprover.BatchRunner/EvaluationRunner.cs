@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SoWImprover.Data;
 using SoWImprover.Models;
 using SoWImprover.Services;
@@ -9,6 +10,7 @@ public class EvaluationRunner(
     EvaluationService evaluator,
     IEvaluationSummaryService summaryService,
     IDbContextFactory<SoWDbContext> dbFactory,
+    IConfiguration configuration,
     ConsoleLogger log)
 {
     public async Task EvaluateDocumentAsync(
@@ -44,9 +46,10 @@ public class EvaluationRunner(
         }).ToList();
 
         log.Log("Running evaluation...");
+        var parallelEval = configuration.GetValue<bool>("FeatureManagement:ParallelEvaluation");
         var completedSections = new HashSet<int>();
         var metricsReceived = 0;
-        await foreach (var (streamIdx, scores) in evaluator.EvaluateStreamingAsync(inputs, ct))
+        await foreach (var (streamIdx, scores) in evaluator.EvaluateStreamingAsync(inputs, parallelEval, ct))
         {
             var (entityIdx, result) = evaluable[streamIdx];
             var sec = sortedSections[entityIdx];

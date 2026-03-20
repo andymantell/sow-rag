@@ -112,6 +112,7 @@ var evalRunner = new EvaluationRunner(
     sp.GetRequiredService<EvaluationService>(),
     sp.GetRequiredService<IEvaluationSummaryService>(),
     dbFactory,
+    config,
     log);
 var allResults = new List<(DocumentEntity Entity, ImprovementResult Result)>();
 
