@@ -147,8 +147,24 @@ async def score_faithfulness(llm, user_input, response, contexts):
     return round(float(result.value), 2) if result.value is not None else None
 
 
-async def evaluate_section(section, llm, emit, embeddings=None):
-    """Evaluate a section, calling emit(results_dict) after each metric completes."""
+async def _eval_metric(name, coro, results, log):
+    """Run a single metric coroutine, store result in *results* dict, and log."""
+    try:
+        value = await coro
+        results[name] = value
+        log.info("%s = %s", name, value)
+    except Exception as e:
+        log.error("%s FAILED: %s: %s", name, type(e).__name__, e)
+        log.debug(traceback.format_exc())
+        results[name] = None
+
+
+async def evaluate_section(section, llm, emit, embeddings=None, parallel=False):
+    """Evaluate a section, calling emit(results_dict) after each metric completes.
+
+    When *parallel* is True, all metrics run concurrently via asyncio.gather
+    and emit is called once at the end with all results.
+    """
     from ragas.metrics.collections import RubricsScoreWithoutReference
     from ragas.metrics.collections import ContextPrecisionWithoutReference
     from ragas.metrics.collections import FactualCorrectness
@@ -169,175 +185,118 @@ async def evaluate_section(section, llm, emit, embeddings=None):
     # The original text is the context for faithfulness (did the LLM stay true to it?)
     original_as_context = [original]
 
-    # Score original quality (1-5 rubric)
-    try:
+    # ── Build list of (name, coroutine) for all metrics ──
+
+    async def _original_quality():
         scorer = RubricsScoreWithoutReference(rubrics=rubrics, llm=llm, max_retries=3)
         result = await scorer.ascore(user_input=user_input, response=original)
-        results["original_quality"] = int(result.value)
-        _log.info("original_quality = %s", result.value)
-    except Exception as e:
-        _log.error("original_quality FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["original_quality"] = None
-    emit(results)
+        return int(result.value)
 
-    # Score baseline quality (1-5 rubric)
-    try:
+    async def _baseline_quality():
         scorer = RubricsScoreWithoutReference(rubrics=rubrics, llm=llm, max_retries=3)
         result = await scorer.ascore(user_input=user_input, response=baseline)
-        results["baseline_quality"] = int(result.value)
-        _log.info("baseline_quality = %s", result.value)
-    except Exception as e:
-        _log.error("baseline_quality FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["baseline_quality"] = None
-    emit(results)
+        return int(result.value)
 
-    # Score RAG quality (1-5 rubric)
-    try:
+    async def _rag_quality():
         scorer = RubricsScoreWithoutReference(rubrics=rubrics, llm=llm, max_retries=3)
         result = await scorer.ascore(user_input=user_input, response=rag_improved)
-        results["rag_quality"] = int(result.value)
-        _log.info("rag_quality = %s", result.value)
-    except Exception as e:
-        _log.error("rag_quality FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["rag_quality"] = None
-    emit(results)
+        return int(result.value)
 
-    # Baseline faithfulness: is the baseline output faithful to the original text?
-    try:
-        score = await score_faithfulness(llm, user_input, baseline, original_as_context)
-        results["baseline_faithfulness"] = score
-        _log.info("baseline_faithfulness = %s", score)
-    except Exception as e:
-        _log.error("baseline_faithfulness FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["baseline_faithfulness"] = None
-    emit(results)
+    async def _baseline_faithfulness():
+        return await score_faithfulness(llm, user_input, baseline, original_as_context)
 
-    # RAG faithfulness: is the RAG output faithful to the original text?
-    try:
-        score = await score_faithfulness(llm, user_input, rag_improved, original_as_context)
-        results["rag_faithfulness"] = score
-        _log.info("rag_faithfulness = %s", score)
-    except Exception as e:
-        _log.error("rag_faithfulness FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["rag_faithfulness"] = None
-    emit(results)
+    async def _rag_faithfulness():
+        return await score_faithfulness(llm, user_input, rag_improved, original_as_context)
 
-    # Context precision: were the retrieved RAG chunks relevant? (RAG-only metric)
-    if rag_contexts:
-        try:
-            scorer = ContextPrecisionWithoutReference(llm=llm, max_retries=3)
-            result = await scorer.ascore(
-                user_input=user_input,
-                response=rag_improved,
-                retrieved_contexts=rag_contexts,
-            )
-            results["context_precision"] = round(float(result.value), 2) if result.value is not None else None
-            _log.info("context_precision = %s", result.value)
-        except Exception as e:
-            _log.error("context_precision FAILED: %s: %s", type(e).__name__, e)
-            _log.debug(traceback.format_exc())
-            results["context_precision"] = None
-        emit(results)
+    async def _context_precision():
+        scorer = ContextPrecisionWithoutReference(llm=llm, max_retries=3)
+        result = await scorer.ascore(
+            user_input=user_input,
+            response=rag_improved,
+            retrieved_contexts=rag_contexts,
+        )
+        return round(float(result.value), 2) if result.value is not None else None
 
-    # ── Factual Correctness: claim-level F1 of output vs original ──
-    # Baseline factual correctness
-    try:
+    async def _baseline_factual_correctness():
         scorer = FactualCorrectness(llm=llm, mode="f1", max_retries=3)
         result = await scorer.ascore(response=baseline, reference=original)
-        results["baseline_factual_correctness"] = round(float(result.value), 2) if result.value is not None else None
-        _log.info("baseline_factual_correctness = %s", result.value)
-    except Exception as e:
-        _log.error("baseline_factual_correctness FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["baseline_factual_correctness"] = None
-    emit(results)
+        return round(float(result.value), 2) if result.value is not None else None
 
-    # RAG factual correctness
-    try:
+    async def _rag_factual_correctness():
         scorer = FactualCorrectness(llm=llm, mode="f1", max_retries=3)
         result = await scorer.ascore(response=rag_improved, reference=original)
-        results["rag_factual_correctness"] = round(float(result.value), 2) if result.value is not None else None
-        _log.info("rag_factual_correctness = %s", result.value)
-    except Exception as e:
-        _log.error("rag_factual_correctness FAILED: %s: %s", type(e).__name__, e)
-        _log.debug(traceback.format_exc())
-        results["rag_factual_correctness"] = None
-    emit(results)
+        return round(float(result.value), 2) if result.value is not None else None
 
-    # ── Context Recall: did retrieval cover the info in the original? (RAG-only) ──
+    async def _context_recall():
+        scorer = ContextRecall(llm=llm, max_retries=3)
+        result = await scorer.ascore(
+            user_input=user_input,
+            retrieved_contexts=rag_contexts,
+            reference=original,
+        )
+        return round(float(result.value), 2) if result.value is not None else None
+
+    async def _baseline_response_relevancy():
+        from ragas.metrics.collections import AnswerRelevancy
+        scorer = AnswerRelevancy(llm=llm, embeddings=embeddings, max_retries=3)
+        result = await scorer.ascore(user_input=user_input, response=baseline)
+        val = max(0.0, float(result.value)) if result.value is not None else None
+        return round(val, 2) if val is not None else None
+
+    async def _rag_response_relevancy():
+        from ragas.metrics.collections import AnswerRelevancy
+        scorer = AnswerRelevancy(llm=llm, embeddings=embeddings, max_retries=3)
+        result = await scorer.ascore(user_input=user_input, response=rag_improved)
+        val = max(0.0, float(result.value)) if result.value is not None else None
+        return round(val, 2) if val is not None else None
+
+    async def _noise_sensitivity():
+        scorer = NoiseSensitivity(llm=llm, max_retries=3)
+        result = await scorer.ascore(
+            user_input=user_input,
+            response=rag_improved,
+            reference=original,
+            retrieved_contexts=rag_contexts,
+        )
+        return round(float(result.value), 2) if result.value is not None else None
+
+    # Always-run metrics
+    metrics = [
+        ("original_quality", _original_quality()),
+        ("baseline_quality", _baseline_quality()),
+        ("rag_quality", _rag_quality()),
+        ("baseline_faithfulness", _baseline_faithfulness()),
+        ("rag_faithfulness", _rag_faithfulness()),
+        ("baseline_factual_correctness", _baseline_factual_correctness()),
+        ("rag_factual_correctness", _rag_factual_correctness()),
+    ]
+
+    # Conditional metrics
     if rag_contexts:
-        try:
-            scorer = ContextRecall(llm=llm, max_retries=3)
-            result = await scorer.ascore(
-                user_input=user_input,
-                retrieved_contexts=rag_contexts,
-                reference=original,
-            )
-            results["context_recall"] = round(float(result.value), 2) if result.value is not None else None
-            _log.info("context_recall = %s", result.value)
-        except Exception as e:
-            _log.error("context_recall FAILED: %s: %s", type(e).__name__, e)
-            _log.debug(traceback.format_exc())
-            results["context_recall"] = None
-        emit(results)
+        metrics.append(("context_precision", _context_precision()))
+        metrics.append(("context_recall", _context_recall()))
+        metrics.append(("noise_sensitivity", _noise_sensitivity()))
 
-    # ── Response Relevancy: did the output stay on-task? (needs embeddings) ──
     if embeddings is not None:
-        # Baseline response relevancy
-        try:
-            from ragas.metrics.collections import AnswerRelevancy
+        metrics.append(("baseline_response_relevancy", _baseline_response_relevancy()))
+        metrics.append(("rag_response_relevancy", _rag_response_relevancy()))
 
-            scorer = AnswerRelevancy(llm=llm, embeddings=embeddings, max_retries=3)
-            result = await scorer.ascore(user_input=user_input, response=baseline)
-            val = max(0.0, float(result.value)) if result.value is not None else None
-            results["baseline_response_relevancy"] = round(val, 2) if val is not None else None
-            _log.info("baseline_response_relevancy = %s", val)
-        except Exception as e:
-            _log.error("baseline_response_relevancy FAILED: %s: %s", type(e).__name__, e)
-            _log.debug(traceback.format_exc())
-            results["baseline_response_relevancy"] = None
+    if parallel:
+        # Run all metrics concurrently, emit once at the end
+        await asyncio.gather(
+            *[_eval_metric(name, coro, results, _log) for name, coro in metrics]
+        )
         emit(results)
-
-        # RAG response relevancy
-        try:
-            from ragas.metrics.collections import AnswerRelevancy
-
-            scorer = AnswerRelevancy(llm=llm, embeddings=embeddings, max_retries=3)
-            result = await scorer.ascore(user_input=user_input, response=rag_improved)
-            val = max(0.0, float(result.value)) if result.value is not None else None
-            results["rag_response_relevancy"] = round(val, 2) if val is not None else None
-            _log.info("rag_response_relevancy = %s", val)
-        except Exception as e:
-            _log.error("rag_response_relevancy FAILED: %s: %s", type(e).__name__, e)
-            _log.debug(traceback.format_exc())
-            results["rag_response_relevancy"] = None
-        emit(results)
-
-    # ── Noise Sensitivity: did irrelevant chunks hurt the RAG output? (RAG-only) ──
-    if rag_contexts:
-        try:
-            scorer = NoiseSensitivity(llm=llm, max_retries=3)
-            result = await scorer.ascore(
-                user_input=user_input,
-                response=rag_improved,
-                reference=original,
-                retrieved_contexts=rag_contexts,
-            )
-            results["noise_sensitivity"] = round(float(result.value), 2) if result.value is not None else None
-            _log.info("noise_sensitivity = %s", result.value)
-        except Exception as e:
-            _log.error("noise_sensitivity FAILED: %s: %s", type(e).__name__, e)
-            _log.debug(traceback.format_exc())
-            results["noise_sensitivity"] = None
-        emit(results)
+    else:
+        # Run sequentially with progressive emit after each metric
+        for name, coro in metrics:
+            await _eval_metric(name, coro, results, _log)
+            emit(results)
 
 
 async def main():
+    parallel = "--parallel" in sys.argv
+
     data = json.loads(sys.stdin.read())
     endpoint = data["endpoint"]
     model_id = data["model_id"]
@@ -345,6 +304,7 @@ async def main():
     embedding_model_id = data.get("embedding_model_id")
 
     _log.info("=== Ragas evaluation starting ===")
+    _log.info("Mode: %s", "parallel" if parallel else "sequential")
     _log.info("Endpoint: %s, model: %s, embedding: %s", endpoint, model_id, embedding_model_id or "(none)")
     _log.info("Sections to evaluate: %d", len(data["sections"]))
     print(f"Using endpoint: {endpoint}, model: {model_id}", file=sys.stderr)
@@ -371,7 +331,7 @@ async def main():
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
 
-        await evaluate_section(section, llm, emit, embeddings)
+        await evaluate_section(section, llm, emit, embeddings, parallel=parallel)
         _log.info("Section %d complete", i + 1)
         print(f"  Section {i + 1} complete", file=sys.stderr)
 
